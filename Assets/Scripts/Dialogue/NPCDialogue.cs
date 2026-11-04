@@ -94,6 +94,7 @@ public class NPCDialogue : MonoBehaviour
 
     private void DisplayCurrentLine()
     {
+        AudioManager.Play(Sfx.Dialogue);
         DialogueLine line = activeLines[currentLineIndex];
         nameText.text = line.speakerName;
         if (line.nameColor.a > 0f)

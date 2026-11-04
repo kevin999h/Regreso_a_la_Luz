@@ -38,6 +38,11 @@ public class PlayerController : MonoBehaviour
     private float boostMultiplier = 1f;
     private Vector3 respawnPoint;
 
+    public bool FacingRight
+    {
+        get { return facingRight; }
+    }
+
     public float BoostRemaining
     {
         get { return boostTimer; }
@@ -124,6 +129,7 @@ public class PlayerController : MonoBehaviour
         if (!locked && Input.GetButtonDown("Jump") && isGrounded && !isCrouching)
         {
             rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+            AudioManager.Play(Sfx.Jump);
         }
     }
 
@@ -195,13 +201,26 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    private void Respawn()
+    public void Respawn()
     {
         transform.position = respawnPoint;
         rb.velocity = Vector2.zero;
         isSliding = false;
         isCrouching = false;
         SetCrouchCollider(false);
+        AudioManager.Play(Sfx.Hurt);
+        if (animator != null) animator.SetTrigger("Hurt");
+    }
+
+    public void Bounce(float force)
+    {
+        rb.velocity = new Vector2(rb.velocity.x, force);
+        AudioManager.Play(Sfx.Jump);
+    }
+
+    public void SetRespawn(Vector3 point)
+    {
+        respawnPoint = point;
     }
 
     public void ApplySpeedBoost(float multiplier, float duration)

@@ -16,6 +16,7 @@ public class SpeedBoostItem : MonoBehaviour
 
         isUsed = true;
         player.ApplySpeedBoost(speedMultiplier, duration);
+        AudioManager.Play(Sfx.Powerup);
 
         if (GameHUDManager.Instance != null)
         {

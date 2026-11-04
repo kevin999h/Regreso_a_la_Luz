@@ -32,6 +32,7 @@ public class InteractableObject : MonoBehaviour
     private void ToggleInteraction()
     {
         isPanelOpen = !isPanelOpen;
+        AudioManager.Play(Sfx.Click);
         if (infoDisplayPanel != null) infoDisplayPanel.SetActive(isPanelOpen);
         if (infoTextComponent != null) infoTextComponent.text = educationalContent;
         if (promptFloatingText != null) promptFloatingText.SetActive(!isPanelOpen);
