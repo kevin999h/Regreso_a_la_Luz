@@ -25,7 +25,7 @@ public class MainMenuManager : MonoBehaviour
     public void ContinueGame()
     {
         AudioManager.Play(Sfx.Click);
-        int level = Mathf.Clamp(SaveSystem.Load().levelUnlocked, 1, 2);
+        int level = Mathf.Clamp(SaveSystem.Load().levelUnlocked, 1, 3);
         SceneManager.LoadScene("Nivel" + level);
     }
 

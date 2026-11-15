@@ -7,7 +7,7 @@ public class GameHUDManager : MonoBehaviour
 {
     public static GameHUDManager Instance { get; private set; }
 
-    [Header("HUD")]
+    [Header("Textos y Paneles del HUD")]
     [SerializeField] private Text counterText;
     [SerializeField] private Text objectiveText;
     [SerializeField] private Text toastText;
@@ -18,10 +18,11 @@ public class GameHUDManager : MonoBehaviour
     [SerializeField] private Text weaponText;
     [SerializeField] private Text missionText;
     [SerializeField] private Image[] nutSlots;
+    [SerializeField] private Image[] lifeSlots;
     [SerializeField] private GameObject missionCompletePanel;
     [SerializeField] private GameObject finalPanel;
 
-    [Header("Meta y progresión")]
+    [Header("Configuración de Nivel")]
     [SerializeField] private int totalRequired = 5;
     [SerializeField] private int levelIndex = 1;
     [SerializeField] private string nextSceneName = "Nivel2";
@@ -34,7 +35,7 @@ public class GameHUDManager : MonoBehaviour
     [SerializeField] private bool requireBoss = false;
     [SerializeField] private int totalEnemies = 0;
 
-    [Header("Ambiente: regreso a la luz")]
+    [Header("Escenario e Iluminación")]
     [SerializeField] private Camera worldCamera;
     [SerializeField] private SpriteRenderer[] backgroundRenderers;
     [SerializeField] private SpriteRenderer generatorRenderer;
@@ -44,214 +45,253 @@ public class GameHUDManager : MonoBehaviour
     [SerializeField] private Color dimTint = new Color(0.4f, 0.45f, 0.6f, 1f);
 
     private int currentCollected = 0;
-    private int kills = 0;
+    private int currentKills = 0;
     private bool bossDefeated = false;
-    private float toastTimer = 0f;
-    private PlayerController player;
+    private int currentLives = 3;
+    private int maxLives = 3;
+    private string currentWeaponDisplay = "Sin arma";
+    private Coroutine toastCoroutine;
 
-    public bool MissionComplete { get; private set; }
-    public bool LevelFinished { get; private set; }
+    public bool IsCombatLevel => combatLevel;
+
+    // En niveles 2 y 3 basta con reunir los 5 chips/núcleos y derrotar al jefe final (o solo los 5 ítems si ya limpió el paso)
+    public bool MissionComplete
+    {
+        get
+        {
+            if (currentCollected < totalRequired) return false;
+            if (combatLevel && requireBoss && !bossDefeated) return false;
+            return true;
+        }
+    }
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
         NPCDialogue.ResetState();
     }
 
     private void Start()
     {
-        player = FindObjectOfType<PlayerController>();
-        if (missionCompletePanel != null) missionCompletePanel.SetActive(false);
-        if (finalPanel != null) finalPanel.SetActive(false);
+        if (worldCamera != null) worldCamera.backgroundColor = darkColor;
+        if (backgroundRenderers != null)
+        {
+            for (int i = 0; i < backgroundRenderers.Length; i++)
+            {
+                if (backgroundRenderers[i] != null) backgroundRenderers[i].color = dimTint;
+            }
+        }
+
         if (toastText != null) toastText.text = "";
         if (boostText != null) boostText.text = "";
-        ApplyAmbient(0f);
-        if (killsText != null) killsText.text = "";
-        if (weaponText != null) weaponText.text = "";
-        if (combatLevel) SetWeapon("Sin arma");
-        UpdateHUDVisuals();
+
+        RefreshHUD();
     }
 
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            RestartGame();
-        }
-
-        if (toastTimer > 0f)
-        {
-            toastTimer -= Time.deltaTime;
-            if (toastTimer <= 0f && toastText != null) toastText.text = "";
-        }
-
-        if (boostText != null && player != null)
-        {
-            float remaining = player.BoostRemaining;
-            boostText.text = remaining > 0f ? "TURBO  " + remaining.ToString("0.0") + " s" : "";
-        }
-    }
-
-    public void AddCollectible(int amount, string itemName)
-    {
-        currentCollected += amount;
-        UpdateHUDVisuals();
-        ShowToast("+" + amount + " " + itemName);
-        AudioManager.Play(Sfx.Collect);
-
-        CheckMission();
-    }
-
-    public void ShowToast(string message)
-    {
-        if (toastText == null) return;
-        toastText.text = message;
-        toastTimer = 2.5f;
-    }
-
-    private void UpdateHUDVisuals()
+    private void RefreshHUD()
     {
         if (counterText != null)
         {
             counterText.text = collectibleLabel + ": " + currentCollected + " / " + totalRequired;
         }
 
-        if (objectiveText != null && !LevelFinished)
-        {
-            objectiveText.text = MissionComplete ? objectiveReady : objectiveStart;
-        }
-
-        if (combatLevel && killsText != null)
-        {
-            killsText.text = "Virus: " + kills + " / " + totalEnemies;
-        }
-
         if (nutSlots != null)
         {
             for (int i = 0; i < nutSlots.Length; i++)
             {
-                if (nutSlots[i] == null) continue;
-                Color c = nutSlots[i].color;
-                c.a = i < currentCollected ? 1f : 0.2f;
-                nutSlots[i].color = c;
+                if (nutSlots[i] != null)
+                {
+                    nutSlots[i].color = i < currentCollected ? Color.white : new Color(1f, 1f, 1f, 0.2f);
+                }
+            }
+        }
+
+        if (lifeSlots != null)
+        {
+            for (int i = 0; i < lifeSlots.Length; i++)
+            {
+                if (lifeSlots[i] != null)
+                {
+                    lifeSlots[i].gameObject.SetActive(combatLevel);
+                    lifeSlots[i].color = i < currentLives ? Color.white : new Color(1f, 1f, 1f, 0.2f);
+                }
+            }
+        }
+
+        if (objectiveText != null)
+        {
+            objectiveText.text = MissionComplete ? objectiveReady : objectiveStart;
+        }
+
+        if (combatLevel)
+        {
+            if (killsText != null)
+            {
+                killsText.text = "Vidas: " + currentLives + " / " + maxLives;
+            }
+            if (weaponText != null)
+            {
+                weaponText.text = "Arma: " + currentWeaponDisplay;
+            }
+        }
+        else
+        {
+            if (killsText != null) killsText.text = "";
+            if (weaponText != null) weaponText.text = "";
+        }
+    }
+
+    public void AddCollectible(int amount, string itemName)
+    {
+        currentCollected = Mathf.Clamp(currentCollected + amount, 0, totalRequired);
+        AudioManager.Play(Sfx.Collect);
+        ShowToast("+1 " + itemName + " (" + currentCollected + "/" + totalRequired + ")");
+        RefreshHUD();
+        CheckMissionState();
+    }
+
+    public void RegisterEnemyKill()
+    {
+        currentKills++;
+        ShowToast("¡Virus eliminado!");
+        RefreshHUD();
+    }
+
+    public void RegisterBossDefeated(string bossName)
+    {
+        bossDefeated = true;
+        ShowToast("¡Derrotaste a " + bossName + "!");
+        RefreshHUD();
+        CheckMissionState();
+    }
+
+    public void UpdateLives(int lives, int max)
+    {
+        currentLives = lives;
+        maxLives = max;
+        RefreshHUD();
+    }
+
+    public void SetWeaponText(string weaponInfo)
+    {
+        currentWeaponDisplay = weaponInfo;
+        RefreshHUD();
+    }
+
+    public void SetBoostRemaining(float seconds)
+    {
+        if (boostText == null) return;
+        boostText.text = seconds > 0.05f ? "TURBO: " + seconds.ToString("0.0") + "s" : "";
+    }
+
+    private void CheckMissionState()
+    {
+        if (MissionComplete)
+        {
+            AudioManager.Play(Sfx.Powerup);
+            if (missionCompletePanel != null)
+            {
+                if (missionText != null && !string.IsNullOrEmpty(missionMessage))
+                {
+                    missionText.text = missionMessage;
+                }
+                missionCompletePanel.SetActive(true);
+                StartCoroutine(HideMissionPanelAfterDelay(4.5f));
             }
         }
     }
 
-    private void OnMissionCompleted()
+    private IEnumerator HideMissionPanelAfterDelay(float delay)
     {
-        MissionComplete = true;
-        if (missionText != null && !string.IsNullOrEmpty(missionMessage)) missionText.text = missionMessage;
-        UpdateHUDVisuals();
-        AudioManager.Play(Sfx.Powerup);
-        if (missionCompletePanel != null)
-        {
-            missionCompletePanel.SetActive(true);
-            Invoke(nameof(HideMissionPanel), 6f);
-        }
-    }
-
-    private void HideMissionPanel()
-    {
+        yield return new WaitForSeconds(delay);
         if (missionCompletePanel != null) missionCompletePanel.SetActive(false);
     }
 
-    public void AddKill()
+    public void ShowToast(string message)
     {
-        kills++;
-        UpdateHUDVisuals();
-        ShowToast("¡Virus eliminado!");
-        AudioManager.Play(Sfx.Collect);
+        if (toastText == null) return;
+        if (toastCoroutine != null) StopCoroutine(toastCoroutine);
+        toastCoroutine = StartCoroutine(ToastRoutine(message));
     }
 
-    public void SetWeapon(string weaponName)
+    private IEnumerator ToastRoutine(string message)
     {
-        if (weaponText != null) weaponText.text = "Arma: " + weaponName;
-    }
-
-    public void OnBossDefeated()
-    {
-        bossDefeated = true;
-        ShowToast("¡Gran Cortocircuito derrotado!");
-        AudioManager.Play(Sfx.Complete);
-        CheckMission();
-    }
-
-    private void CheckMission()
-    {
-        if (MissionComplete) return;
-
-        bool bossOk = !requireBoss || bossDefeated;
-        if (currentCollected >= totalRequired && bossOk)
-        {
-            OnMissionCompleted();
-        }
+        toastText.text = message;
+        yield return new WaitForSeconds(2.6f);
+        toastText.text = "";
     }
 
     public void FinishLevel()
     {
-        if (LevelFinished) return;
-        LevelFinished = true;
         AudioManager.Play(Sfx.Complete);
-
-        SaveSystem.UnlockLevel(Mathf.Min(levelIndex + 1, 2));
-        SaveSystem.AddScore(currentCollected);
-
+        if (missionCompletePanel != null) missionCompletePanel.SetActive(false);
         if (objectiveText != null) objectiveText.text = objectiveDone;
-        if (finalBodyText != null) finalBodyText.text += "\n\n" + collectibleLabel + " recogidos: " + currentCollected + " / " + totalRequired;
-        if (generatorRenderer != null && generatorOnSprite != null) generatorRenderer.sprite = generatorOnSprite;
-        StartCoroutine(LightsOn());
+
+        if (generatorRenderer != null && generatorOnSprite != null)
+        {
+            generatorRenderer.sprite = generatorOnSprite;
+        }
+
+        SaveSystem.UnlockLevel(levelIndex + 1);
+        SaveSystem.AddScore(100 * levelIndex);
+
+        StartCoroutine(RestoreLightAndShowFinal());
     }
 
-    private IEnumerator LightsOn()
+    private IEnumerator RestoreLightAndShowFinal()
     {
-        float duration = 2.5f;
+        float duration = 1.2f;
         float t = 0f;
         while (t < duration)
         {
             t += Time.deltaTime;
-            ApplyAmbient(Mathf.Clamp01(t / duration));
+            float k = Mathf.Clamp01(t / duration);
+            if (worldCamera != null)
+            {
+                worldCamera.backgroundColor = Color.Lerp(darkColor, lightColor, k);
+            }
+            if (backgroundRenderers != null)
+            {
+                for (int i = 0; i < backgroundRenderers.Length; i++)
+                {
+                    if (backgroundRenderers[i] != null)
+                    {
+                        backgroundRenderers[i].color = Color.Lerp(dimTint, Color.white, k);
+                    }
+                }
+            }
             yield return null;
         }
-        ApplyAmbient(1f);
-        if (finalPanel != null) finalPanel.SetActive(true);
-    }
 
-    private void ApplyAmbient(float k)
-    {
-        if (worldCamera != null)
+        if (finalPanel != null)
         {
-            worldCamera.backgroundColor = Color.Lerp(darkColor, lightColor, k);
-        }
-
-        if (backgroundRenderers != null)
-        {
-            Color tint = Color.Lerp(dimTint, Color.white, k);
-            for (int i = 0; i < backgroundRenderers.Length; i++)
-            {
-                if (backgroundRenderers[i] != null) backgroundRenderers[i].color = tint;
-            }
+            finalPanel.SetActive(true);
         }
     }
 
     public void NextLevel()
     {
         AudioManager.Play(Sfx.Click);
-        NPCDialogue.ResetState();
-        SceneManager.LoadScene(nextSceneName);
-    }
-
-    public void RestartGame()
-    {
-        NPCDialogue.ResetState();
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        if (!string.IsNullOrEmpty(nextSceneName))
+        {
+            SceneManager.LoadScene(nextSceneName);
+        }
     }
 
     public void GoToMenu()
     {
         AudioManager.Play(Sfx.Click);
-        NPCDialogue.ResetState();
         SceneManager.LoadScene("MainMenu");
+    }
+
+    public void RestartGame()
+    {
+        AudioManager.Play(Sfx.Click);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }

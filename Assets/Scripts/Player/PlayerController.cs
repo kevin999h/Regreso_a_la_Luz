@@ -1,18 +1,18 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("Movimiento")]
+    [Header("Movimiento y Salto")]
     [SerializeField] private float moveSpeed = 6f;
     [SerializeField] private bool isTopDown = false;
-
-    [Header("Salto")]
     [SerializeField] private float jumpForce = 13f;
     [SerializeField] private Transform groundCheck;
     [SerializeField] private float checkRadius = 0.15f;
-    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private LayerMask groundLayer = ~0;
 
-    [Header("Agacharse y deslizarse")]
+    [Header("Deslizamiento y Agachado (Tecla S)")]
     [SerializeField] private float slideSpeedMultiplier = 1.7f;
     [SerializeField] private float slideDuration = 0.5f;
     [SerializeField] private float crouchSpeedMultiplier = 0.5f;
@@ -20,220 +20,303 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Vector2 standingOffset = new Vector2(0f, 0.45f);
     [SerializeField] private Vector2 crouchSize = new Vector2(0.45f, 0.4f);
     [SerializeField] private Vector2 crouchOffset = new Vector2(0f, 0.25f);
-
-    [Header("Reaparición")]
     [SerializeField] private float fallLimitY = -12f;
 
+    [Header("Vidas")]
+    [SerializeField] private int maxLives = 3;
+
     private Rigidbody2D rb;
+    private CapsuleCollider2D col;
     private Animator animator;
-    private CapsuleCollider2D capsule;
-    private Vector2 moveInput;
-    private bool facingRight = true;
-    private bool isGrounded;
-    private bool isCrouching;
-    private bool isSliding;
-    private float slideTimer;
-    private float slideDirection;
-    private float boostTimer;
+    private SpriteRenderer sr;
+
+    private float moveInput;
+    private int facingDir = 1;
+    private bool isGrounded = true;
+    private bool isSliding = false;
+    private bool isCrouching = false;
+    private float slideTimer = 0f;
+
     private float boostMultiplier = 1f;
-    private Vector3 respawnPoint;
+    private float boostTimer = 0f;
 
-    public bool FacingRight
-    {
-        get { return facingRight; }
-    }
+    private Vector3 respawnPosition;
+    private int currentLives;
+    private float invulnerableTimer = 0f;
 
-    public float BoostRemaining
-    {
-        get { return boostTimer; }
-    }
+    public int FacingDirection => facingDir;
+    public bool IsCrouching => isCrouching;
+    public bool IsSliding => isSliding;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        col = GetComponent<CapsuleCollider2D>();
         animator = GetComponent<Animator>();
-        capsule = GetComponent<CapsuleCollider2D>();
-        respawnPoint = transform.position;
+        sr = GetComponent<SpriteRenderer>();
+        respawnPosition = transform.position;
+        currentLives = maxLives;
+    }
+
+    private void Start()
+    {
+        if (GameHUDManager.Instance != null)
+        {
+            GameHUDManager.Instance.UpdateLives(currentLives, maxLives);
+        }
     }
 
     private void Update()
     {
-        bool locked = NPCDialogue.IsDialogueActive;
-        float horizontal = locked ? 0f : Input.GetAxisRaw("Horizontal");
-        float vertical = (isTopDown && !locked) ? Input.GetAxisRaw("Vertical") : 0f;
-        moveInput = new Vector2(horizontal, vertical).normalized;
-
-        if (horizontal > 0 && !facingRight) Flip();
-        else if (horizontal < 0 && facingRight) Flip();
-
-        if (boostTimer > 0f)
+        if (Input.GetKeyDown(KeyCode.R))
         {
-            boostTimer -= Time.deltaTime;
-            if (boostTimer <= 0f)
-            {
-                boostTimer = 0f;
-                boostMultiplier = 1f;
-            }
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            return;
         }
 
-        if (!isTopDown)
+        if (invulnerableTimer > 0f)
         {
-            HandlePlatformerActions(horizontal, locked);
+            invulnerableTimer -= Time.deltaTime;
         }
 
-        UpdateAnimator(horizontal);
-
-        if (transform.position.y < fallLimitY)
+        if (NPCDialogue.IsDialogueActive)
         {
-            Respawn();
+            moveInput = 0f;
+            rb.velocity = new Vector2(0f, rb.velocity.y);
+            UpdateAnimator();
+            return;
         }
-    }
 
-    private void HandlePlatformerActions(float horizontal, bool locked)
-    {
-        isGrounded = groundCheck != null && HasSolid(Physics2D.OverlapCircleAll(groundCheck.position, checkRadius, groundLayer));
+        moveInput = Input.GetAxisRaw("Horizontal");
+        if (moveInput > 0.01f)
+        {
+            facingDir = 1;
+            if (sr != null) sr.flipX = false;
+        }
+        else if (moveInput < -0.01f)
+        {
+            facingDir = -1;
+            if (sr != null) sr.flipX = true;
+        }
 
-        bool downHeld = !locked && (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow));
-        bool downPressed = !locked && (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow));
+        CheckGrounded();
+
+        bool ceilingBlocked = HasCeilingAbove();
+
+        // Salto con ESPACIO, W o Flecha Arriba (bloqueado si hay techo bajo encima para no atravesar la estructura)
+        if ((Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) && isGrounded && !ceilingBlocked)
+        {
+            isSliding = false;
+            isCrouching = false;
+            ApplyCollider(false);
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+            isGrounded = false;
+            AudioManager.Play(Sfx.Jump);
+        }
+
+        bool holdDown = Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
+        bool pressDown = Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow);
+
+        if (pressDown && isGrounded && Mathf.Abs(moveInput) > 0.1f && !isSliding)
+        {
+            isSliding = true;
+            slideTimer = slideDuration;
+            ApplyCollider(true);
+        }
 
         if (isSliding)
         {
             slideTimer -= Time.deltaTime;
-            if (slideTimer <= 0f)
+            if (slideTimer <= 0f || !holdDown)
             {
                 isSliding = false;
+                if (holdDown || ceilingBlocked)
+                {
+                    isCrouching = true;
+                    ApplyCollider(true);
+                }
+                else
+                {
+                    isCrouching = false;
+                    ApplyCollider(false);
+                }
             }
         }
-        else if (downPressed && isGrounded && !isCrouching && Mathf.Abs(horizontal) > 0.1f)
+        else
         {
-            isSliding = true;
-            slideTimer = slideDuration;
-            slideDirection = Mathf.Sign(horizontal);
-        }
-
-        bool wantsCrouch = isGrounded && (downHeld || isSliding);
-        if (wantsCrouch)
-        {
-            if (!isCrouching)
+            if ((holdDown && isGrounded) || ceilingBlocked)
             {
-                SetCrouchCollider(true);
+                isCrouching = true;
+                ApplyCollider(true);
             }
-            isCrouching = true;
-        }
-        else if (isCrouching && !HasCeilingAbove())
-        {
-            SetCrouchCollider(false);
-            isCrouching = false;
+            else if (isCrouching)
+            {
+                if (!ceilingBlocked)
+                {
+                    isCrouching = false;
+                    ApplyCollider(false);
+                }
+            }
         }
 
-        if (!locked && Input.GetButtonDown("Jump") && isGrounded && !isCrouching)
+        if (boostTimer > 0f)
         {
-            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-            AudioManager.Play(Sfx.Jump);
+            boostTimer -= Time.deltaTime;
+            if (GameHUDManager.Instance != null)
+            {
+                GameHUDManager.Instance.SetBoostRemaining(boostTimer);
+            }
+            if (boostTimer <= 0f)
+            {
+                boostMultiplier = 1f;
+                if (GameHUDManager.Instance != null)
+                {
+                    GameHUDManager.Instance.SetBoostRemaining(0f);
+                }
+            }
         }
+
+        if (transform.position.y < fallLimitY)
+        {
+            if (GameHUDManager.Instance != null)
+            {
+                GameHUDManager.Instance.ShowToast("¡Caíste al vacío! Regresas al último checkpoint");
+            }
+            Respawn();
+        }
+
+        UpdateAnimator();
     }
 
     private void FixedUpdate()
     {
-        if (isTopDown)
-        {
-            rb.velocity = moveInput * moveSpeed;
-            return;
-        }
+        if (NPCDialogue.IsDialogueActive) return;
 
-        float velocityX;
+        float speed = moveSpeed * boostMultiplier;
         if (isSliding)
         {
-            velocityX = slideDirection * moveSpeed * slideSpeedMultiplier;
+            float dir = Mathf.Abs(moveInput) > 0.01f ? Mathf.Sign(moveInput) : facingDir;
+            rb.velocity = new Vector2(dir * moveSpeed * slideSpeedMultiplier * boostMultiplier, rb.velocity.y);
         }
         else if (isCrouching)
         {
-            velocityX = moveInput.x * moveSpeed * crouchSpeedMultiplier;
+            rb.velocity = new Vector2(moveInput * speed * crouchSpeedMultiplier, rb.velocity.y);
         }
         else
         {
-            velocityX = moveInput.x * moveSpeed * boostMultiplier;
+            rb.velocity = new Vector2(moveInput * speed, rb.velocity.y);
         }
-
-        rb.velocity = new Vector2(velocityX, rb.velocity.y);
     }
 
-    private void UpdateAnimator(float horizontal)
+    private void CheckGrounded()
     {
-        if (animator == null) return;
-
-        animator.SetFloat("Speed", Mathf.Abs(horizontal));
-        animator.SetBool("IsGrounded", isTopDown || isGrounded);
-        animator.SetBool("IsSliding", isSliding);
-        animator.SetBool("IsCrouching", isCrouching && !isSliding);
-        animator.SetBool("IsBoosted", boostTimer > 0f);
-    }
-
-    private void SetCrouchCollider(bool crouch)
-    {
-        if (capsule == null) return;
-        capsule.size = crouch ? crouchSize : standingSize;
-        capsule.offset = crouch ? crouchOffset : standingOffset;
-    }
-
-    private bool HasCeilingAbove()
-    {
-        float scaleX = Mathf.Abs(transform.localScale.x);
-        float scaleY = Mathf.Abs(transform.localScale.y);
-        float crouchTop = (crouchOffset.y + crouchSize.y * 0.5f) * scaleY;
-        float standTop = (standingOffset.y + standingSize.y * 0.5f) * scaleY;
-        float height = standTop - crouchTop - 0.05f;
-        if (height <= 0f) return false;
-
-        Vector2 center = new Vector2(transform.position.x, transform.position.y + crouchTop + 0.025f + height * 0.5f);
-        Vector2 size = new Vector2(standingSize.x * scaleX * 0.9f, height);
-        return HasSolid(Physics2D.OverlapBoxAll(center, size, 0f, groundLayer));
-    }
-
-    private bool HasSolid(Collider2D[] hits)
-    {
+        Vector2 pos = groundCheck != null ? (Vector2)groundCheck.position : (Vector2)transform.position;
+        Collider2D[] hits = Physics2D.OverlapCircleAll(pos, checkRadius, groundLayer);
+        bool groundedNow = false;
         for (int i = 0; i < hits.Length; i++)
         {
-            if (hits[i].isTrigger) continue;
-            if (hits[i].attachedRigidbody == rb) continue;
-            return true;
+            if (hits[i] != null && hits[i].gameObject != gameObject && !hits[i].isTrigger)
+            {
+                groundedNow = true;
+                break;
+            }
+        }
+        isGrounded = groundedNow;
+    }
+
+    // Verifica toda la caja superior donde estaría la cabeza de Theo si se pone de pie (evita atravesar túneles/estructuras al soltar S)
+    private bool HasCeilingAbove()
+    {
+        float scaleY = Mathf.Abs(transform.localScale.y);
+        float scaleX = Mathf.Abs(transform.localScale.x);
+        Vector2 boxCenter = (Vector2)transform.position + new Vector2(0f, 0.58f * scaleY);
+        Vector2 boxSize = new Vector2(0.36f * scaleX, 0.42f * scaleY);
+        Collider2D[] hits = Physics2D.OverlapBoxAll(boxCenter, boxSize, 0f, groundLayer);
+        for (int i = 0; i < hits.Length; i++)
+        {
+            if (hits[i] != null && hits[i].gameObject != gameObject && !hits[i].isTrigger)
+            {
+                return true;
+            }
         }
         return false;
     }
 
-    public void Respawn()
+    private void ApplyCollider(bool low)
     {
-        transform.position = respawnPoint;
-        rb.velocity = Vector2.zero;
-        isSliding = false;
-        isCrouching = false;
-        SetCrouchCollider(false);
-        AudioManager.Play(Sfx.Hurt);
-        if (animator != null) animator.SetTrigger("Hurt");
+        if (col == null) return;
+        col.size = low ? crouchSize : standingSize;
+        col.offset = low ? crouchOffset : standingOffset;
     }
 
-    public void Bounce(float force)
+    private void UpdateAnimator()
     {
-        rb.velocity = new Vector2(rb.velocity.x, force);
+        if (animator == null) return;
+        animator.SetFloat("Speed", Mathf.Abs(moveInput));
+        animator.SetBool("IsGrounded", isGrounded);
+        animator.SetBool("IsSliding", isSliding);
+        animator.SetBool("IsCrouching", isCrouching);
+        animator.SetBool("IsBoosted", boostTimer > 0f);
+    }
+
+    public void Bounce(float bounceVelocity = 11.5f)
+    {
+        if (rb == null) return;
+        rb.velocity = new Vector2(rb.velocity.x, bounceVelocity);
+        isGrounded = false;
         AudioManager.Play(Sfx.Jump);
-    }
-
-    public void SetRespawn(Vector3 point)
-    {
-        respawnPoint = point;
     }
 
     public void ApplySpeedBoost(float multiplier, float duration)
     {
         boostMultiplier = multiplier;
         boostTimer = duration;
+        if (GameHUDManager.Instance != null)
+        {
+            GameHUDManager.Instance.SetBoostRemaining(boostTimer);
+        }
     }
 
-    private void Flip()
+    public void SetRespawn(Vector3 newRespawn)
     {
-        facingRight = !facingRight;
-        Vector3 scale = transform.localScale;
-        scale.x *= -1;
-        transform.localScale = scale;
+        respawnPosition = newRespawn;
+    }
+
+    public void Respawn()
+    {
+        if (invulnerableTimer > 0f && transform.position.y >= fallLimitY) return;
+        invulnerableTimer = 0.6f;
+
+        AudioManager.Play(Sfx.Hurt);
+        if (animator != null)
+        {
+            animator.SetTrigger("Hurt");
+        }
+
+        if (GameHUDManager.Instance != null && GameHUDManager.Instance.IsCombatLevel)
+        {
+            currentLives--;
+            GameHUDManager.Instance.UpdateLives(currentLives, maxLives);
+
+            if (currentLives <= 0)
+            {
+                currentLives = maxLives;
+                GameHUDManager.Instance.UpdateLives(currentLives, maxLives);
+                GameHUDManager.Instance.ShowToast("¡Te quedaste sin vidas! Reiniciando en punto de control...");
+            }
+        }
+
+        // Si tiene la pistola y reaparece con pocas balas, le recargamos mínimo 18 balas para que nunca quede bloqueado
+        PlayerCombat combat = GetComponent<PlayerCombat>();
+        if (combat != null)
+        {
+            combat.RefillMinimumAmmoOnRespawn();
+        }
+
+        isSliding = false;
+        isCrouching = false;
+        ApplyCollider(false);
+        rb.velocity = Vector2.zero;
+        transform.position = respawnPosition;
     }
 }
