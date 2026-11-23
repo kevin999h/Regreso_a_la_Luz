@@ -14,7 +14,7 @@ public static class Momento3Builder
 
     private static readonly Color Cyan = new Color(0.3f, 0.95f, 0.9f, 1f);
     private static readonly Color Gold = new Color(1f, 0.85f, 0.35f, 1f);
-    private static readonly Color Dark = new Color(0.02f, 0.05f, 0.09f, 0.92f);
+    private static readonly Color Dark = new Color(0.02f, 0.05f, 0.09f, 0.94f);
     private static readonly Color VoltColor = new Color(0.4f, 1f, 0.95f, 1f);
     private static readonly Color LumenColor = new Color(1f, 0.85f, 0.35f, 1f);
 
@@ -42,12 +42,27 @@ public static class Momento3Builder
         public Image[] lifeSlots;
         public GameObject missionPanel;
         public GameObject finalPanel;
+        public GameObject gameOverPanel;
         public Button nextButton;
         public Button menuButton;
         public Button restartButton;
+        public Button gameOverRestartButton;
+        public Button gameOverMenuButton;
         public DialogueUI dialogue;
         public GameObject infoPanel;
         public Text infoText;
+        public Image diagramImage;
+        public Text quizText;
+        public Text quizFeedback;
+    }
+
+    private class QuizSpec
+    {
+        public string diagramPath;
+        public string question;
+        public string[] options;
+        public int correctIndex;
+        public string feedback;
     }
 
     private class LevelSpec
@@ -57,7 +72,10 @@ public static class Momento3Builder
         public string title;
         public string tilesPath;
         public string bgPath;
+        public string midBgPath;
+        public string litBgPath;
         public Color dark;
+        public Color midLight;
         public Color light;
         public Color dim;
         public int[][] blocks;
@@ -71,6 +89,7 @@ public static class Momento3Builder
         public float cameraMaxX;
         public float[] interactX;
         public string[] interactContent;
+        public QuizSpec[] quizzes;
         public DialogueLine[] guideConv;
         public DialogueLine[] guideDone;
         public DialogueLine[] techConv;
@@ -101,6 +120,18 @@ public static class Momento3Builder
         return line;
     }
 
+    private static QuizSpec Q(string diag, string question, string a, string b, string c, int correct, string feedback)
+    {
+        return new QuizSpec
+        {
+            diagramPath = diag,
+            question = question,
+            options = new[] { a, b, c },
+            correctIndex = correct,
+            feedback = feedback
+        };
+    }
+
     private static LevelSpec GetLevel(int n)
     {
         LevelSpec s = new LevelSpec();
@@ -120,16 +151,34 @@ public static class Momento3Builder
             s.title = "NIVEL 1 - Ciudad apagada";
             s.tilesPath = "Assets/Sprites/Environment/Circuit_Tiles.png";
             s.bgPath = "Assets/Sprites/Environment/GameBackground.png";
-            s.dark = new Color(0.02f, 0.03f, 0.07f, 1f);
-            s.light = new Color(0.55f, 0.82f, 0.98f, 1f);
-            s.dim = new Color(0.4f, 0.45f, 0.6f, 1f);
+            s.midBgPath = "Assets/Sprites/Environment/CityMid_Nivel1.png";
+            s.litBgPath = "Assets/Sprites/Environment/CityLit_Nivel1.png";
+            s.dark = new Color(0.02f, 0.04f, 0.09f, 1f);
+            s.midLight = new Color(0.11f, 0.22f, 0.40f, 1f);
+            s.light = new Color(0.32f, 0.62f, 0.88f, 1f);
+            s.dim = new Color(0.90f, 0.92f, 1f, 1f);
             s.blocks = new int[][]
             {
-                new int[] { -8, 21, -6, -3, 1 }, new int[] { 25, 40, -6, -3, 1 }, new int[] { 55, 90, -6, -3, 1 }, new int[] { 94, 118, -6, -3, 1 },
-                new int[] { 42, 44, -2, -2, 1 }, new int[] { 47, 49, -1, -1, 1 }, new int[] { 51, 52, -2, -2, 1 },
-                new int[] { 62, 63, -2, -1, 0 }, new int[] { 72, 84, -1, 0, 1 }, new int[] { 100, 102, -1, -1, 1 }
+                new int[] { -8, 21, -6, -3, 1 },
+                new int[] { 25, 40, -6, -3, 1 },
+                new int[] { 55, 90, -6, -3, 1 },
+                new int[] { 94, 118, -6, -3, 1 },
+                new int[] { 14, 17, -1, -1, 1 },
+                new int[] { 42, 44, -2, -2, 1 },
+                new int[] { 47, 49, -1, -1, 1 },
+                new int[] { 51, 52, -2, -2, 1 },
+                new int[] { 62, 63, -2, -1, 0 },
+                new int[] { 72, 84, -1, 0, 1 },
+                new int[] { 100, 102, -1, -1, 1 }
             };
-            s.nuts = new Vector2[] { new Vector2(15.5f, -1.4f), new Vector2(23.5f, 0.4f), new Vector2(48.5f, 0.8f), new Vector2(78f, -1.4f), new Vector2(101.5f, 0.8f) };
+            s.nuts = new Vector2[]
+            {
+                new Vector2(15.5f, 0.8f),
+                new Vector2(23.5f, 0.4f),
+                new Vector2(48.5f, 0.8f),
+                new Vector2(78f, -1.4f),
+                new Vector2(101.5f, 0.8f)
+            };
             s.batteries = new Vector2[] { new Vector2(31f, -1.3f), new Vector2(67f, -1.3f) };
             s.sparks = new Vector2[0];
             s.checkpoints = new float[] { 56f };
@@ -140,30 +189,44 @@ public static class Momento3Builder
             s.interactX = new float[] { 11f, 58f };
             s.interactContent = new string[]
             {
-                "LEY DE OHM\n\nV = I x R\n\nEl voltaje (V, en voltios) es igual a la corriente (I, en amperios) por la resistencia (R, en ohmios).\n\nEjemplo: con 12 V y una resistencia de 4 ohmios, la corriente es I = V / R = 3 A.",
-                "CIRCUITO CERRADO\n\nLa corriente solo circula si el circuito está CERRADO: fuente, conductores y carga conectados sin interrupciones.\n\nSi el circuito se abre, la corriente se detiene y la luz se apaga."
+                "LEY DE OHM (V = I × R)\n\n• Voltaje (V): fuerza eléctrica en Voltios.\n• Corriente (I): flujo de electrones en Amperios.\n• Resistencia (R): oposición al paso en Ohmios (Ω).\n\nEjemplo: con 12 V y R = 4 Ω, la corriente es I = 12 / 4 = 3 A.",
+                "CIRCUITO CERRADO vs. ABIERTO\n\nLa corriente solo circula cuando existe un camino continuo (cerrado) desde la fuente (+) pasando por la carga hasta el polo (-).\n\nSi un cable se corta o el interruptor está abierto, I = 0 A y la ciudad se apaga."
+            };
+            s.quizzes = new QuizSpec[]
+            {
+                Q("Assets/Sprites/Education/Diag_Ohm.png",
+                  "Si una fuente entrega 12 V sobre una resistencia de 4 Ω, ¿cuál es la corriente I?",
+                  "I = 3 Amperios (12 / 4)",
+                  "I = 48 Amperios (12 × 4)",
+                  "I = 0.33 Amperios (4 / 12)",
+                  0, "¡Exacto! Según la Ley de Ohm, I = V / R = 12 / 4 = 3 A."),
+                Q("Assets/Sprites/Education/Diag_Cerrado.png",
+                  "¿Qué ocurre con la luz cuando abrimos el interruptor de un circuito?",
+                  "La corriente aumenta el doble",
+                  "El circuito se abre (I = 0 A) y el bombillo se apaga",
+                  "El voltaje se convierte en resistencia",
+                  1, "¡Correcto! Sin camino cerrado no hay circulación de corriente.")
             };
             s.guideConv = new[]
             {
-                L("BIT", VoltColor, "Bip... ¡Theo! Mi memoria está dañada, pero recuerdo esto: el generador de la ciudad se apagó y todo quedó a oscuras."),
-                L("Theo (Tú)", LumenColor, "¿Qué necesitas que haga, BIT?"),
-                L("BIT", VoltColor, "Cinco tuercas del generador salieron volando por el circuito. Recógelas todas."),
-                L("BIT", VoltColor, "Salta con ESPACIO y deslízate con S para pasar los túneles bajos. Las pilas te dan turbo por unos segundos."),
-                L("BIT", VoltColor, "Lee los carteles y terminales con E: te enseñarán cómo funciona un circuito. Cuando termines, busca al Técnico Amp junto al generador.")
+                L("BIT", VoltColor, "Bip... ¡Theo! El generador de Ciudad Circuito se apagó y todo quedó a oscuras."),
+                L("Theo (Tú)", LumenColor, "¿Cómo volvemos a encender la ciudad, BIT?"),
+                L("BIT", VoltColor, "Recoge las 5 tuercas del generador. Al reunir 3, verás cómo las primeras luces de la ciudad empiezan a volver."),
+                L("BIT", VoltColor, "Salta con ESPACIO, agáchate o deslízate con S, y abre los carteles con E para ver esquemas de circuitos y ganar puntos con sus retos.")
             };
             s.techConv = new[]
             {
-                L("Técnico Amp", VoltColor, "Aún faltan tuercas. Sin las cinco, el generador no arranca."),
-                L("Técnico Amp", VoltColor, "Revisa el HUD: ahí ves cuántas llevas.")
+                L("Técnico Amp", VoltColor, "Aún faltan tuercas. Sin las cinco, el generador no puede cerrar el circuito."),
+                L("Técnico Amp", VoltColor, "Revisa el contador superior izquierdo para ver cuántas llevas.")
             };
             s.techDone = new[]
             {
                 L("Técnico Amp", VoltColor, "¡Excelente! Con estas cinco tuercas el generador queda bien ajustado."),
-                L("Theo (Tú)", LumenColor, "¿Y ahora qué falta?"),
-                L("Técnico Amp", VoltColor, "Un circuito necesita fuente, conductores y carga. Ya tenemos todo: ¡que vuelva la luz!")
+                L("Theo (Tú)", LumenColor, "¡Vamos a encender el distrito residencial!"),
+                L("Técnico Amp", VoltColor, "Fuente, conductores y carga listos en circuito cerrado: ¡que vuelva la luz!")
             };
             s.finalTitle = "¡LUZ RESTAURADA!";
-            s.finalBody = "Nivel 1 completado.\n\nAprendiste que la corriente fluye en un circuito cerrado y que V = I x R (Ley de Ohm).";
+            s.finalBody = "Nivel 1 completado.\n\nDominaste la Ley de Ohm (V = I × R) y el Circuito Cerrado.\nEl primer sector de Ciudad Circuito ya está iluminado.";
             s.nextScene = "Nivel2";
         }
         else if (n == 2)
@@ -171,28 +234,59 @@ public static class Momento3Builder
             s.title = "NIVEL 2 - Zona infectada";
             s.tilesPath = "Assets/Sprites/Environment/Infected_Tiles.png";
             s.bgPath = "Assets/Sprites/Environment/Infected_Background.png";
+            s.midBgPath = "Assets/Sprites/Environment/CityMid_Nivel2.png";
+            s.litBgPath = "Assets/Sprites/Environment/CityLit_Nivel2.png";
             s.collectiblePath = "Assets/Sprites/Props/Chip.png";
             s.collectibleName = "Chip";
             s.signAPath = "Assets/Sprites/Props/Sign_Warning.png";
             s.signBPath = "Assets/Sprites/Props/Sign_Fuse.png";
-            s.dark = new Color(0.01f, 0.05f, 0.03f, 1f);
-            s.light = new Color(0.6f, 0.95f, 0.7f, 1f);
-            s.dim = new Color(0.35f, 0.5f, 0.4f, 1f);
+            s.dark = new Color(0.01f, 0.06f, 0.04f, 1f);
+            s.midLight = new Color(0.08f, 0.28f, 0.24f, 1f);
+            s.light = new Color(0.24f, 0.65f, 0.58f, 1f);
+            s.dim = new Color(0.90f, 0.96f, 0.92f, 1f);
             s.blocks = new int[][]
             {
-                new int[] { -8, 22, -6, -3, 1 }, new int[] { 26, 52, -6, -3, 1 }, new int[] { 53, 58, -6, -2, 1 }, new int[] { 59, 66, -6, -1, 1 },
-                new int[] { 67, 74, -6, -2, 1 }, new int[] { 75, 100, -6, -3, 1 }, new int[] { 105, 150, -6, -3, 1 },
-                new int[] { 44, 46, -1, -1, 1 }, new int[] { 84, 86, -1, -1, 1 }, new int[] { 102, 103, -2, -2, 1 }
+                new int[] { -8, 22, -6, -3, 1 },
+                new int[] { 26, 52, -6, -3, 1 },
+                new int[] { 53, 58, -6, -2, 1 },
+                new int[] { 59, 66, -6, -1, 1 },
+                new int[] { 67, 74, -6, -2, 1 },
+                new int[] { 75, 100, -6, -3, 1 },
+                new int[] { 105, 150, -6, -3, 1 },
+                new int[] { 33, 36, -1, -1, 1 },
+                new int[] { 44, 46, -1, -1, 1 },
+                new int[] { 84, 86, -1, -1, 1 },
+                new int[] { 102, 103, -2, -2, 1 }
             };
-            s.nuts = new Vector2[] { new Vector2(45f, 0.8f), new Vector2(62.5f, 0.8f), new Vector2(85f, 0.8f), new Vector2(102.8f, -0.2f), new Vector2(112f, -1.3f) };
-            s.batteries = new Vector2[] { new Vector2(35f, -1.3f), new Vector2(95f, -1.3f) };
+            s.nuts = new Vector2[]
+            {
+                new Vector2(45f, 0.8f),
+                new Vector2(62.5f, 0.8f),
+                new Vector2(85f, 0.8f),
+                new Vector2(102.8f, -0.2f),
+                new Vector2(112f, -1.3f)
+            };
+            s.batteries = new Vector2[] { new Vector2(35f, 0.8f), new Vector2(95f, -1.3f) };
             s.sparks = new Vector2[0];
             s.checkpoints = new float[] { 27f, 62f, 106f, 124f };
             s.checkpointY = new float[] { -2f, 0f, -2f, -2f };
-            s.enemies = new Vector3[] { new Vector3(28f, -2f, 3f), new Vector3(37f, -2f, 4f), new Vector3(49f, -2f, 3f), new Vector3(56f, -1f, 2f), new Vector3(71f, -1f, 2f), new Vector3(90f, -2f, 4f), new Vector3(112f, -2f, 4f) };
-            s.weapons = new Vector3[] { new Vector3(14f, -1.4f, 1f), new Vector3(121f, -1.4f, 2f) };
+            s.enemies = new Vector3[]
+            {
+                new Vector3(28f, -2f, 3f),
+                new Vector3(37f, -2f, 4f),
+                new Vector3(49f, -2f, 3f),
+                new Vector3(56f, -1f, 2f),
+                new Vector3(71f, -1f, 2f),
+                new Vector3(90f, -2f, 4f),
+                new Vector3(112f, -2f, 4f)
+            };
+            s.weapons = new Vector3[]
+            {
+                new Vector3(14f, -1.4f, 1f),
+                new Vector3(121f, -1.4f, 2f)
+            };
             s.hasBoss = true;
-            s.boss = new Vector3(136f, -2f, 8f);
+            s.boss = new Vector3(136f, -2f, 7f);
             s.guideX = 3f;
             s.technicianX = 147f;
             s.generatorX = 150f;
@@ -200,35 +294,50 @@ public static class Momento3Builder
             s.interactX = new float[] { 9f, 79f };
             s.interactContent = new string[]
             {
-                "CORTOCIRCUITO\n\nOcurre cuando la corriente encuentra un camino de resistencia casi nula.\n\nComo I = V / R, si R es muy pequeña la corriente se vuelve enorme y puede quemar el circuito.",
-                "EL FUSIBLE\n\nEs un componente de seguridad: si la corriente supera su límite, se funde y abre el circuito.\n\nAsí protege a los demás componentes de un cortocircuito."
+                "¿QUÉ ES UN CORTOCIRCUITO?\n\nOcurre cuando la corriente encuentra un atajo con resistencia casi nula (R ≈ 0 Ω).\n\nAl dividir I = V / R entre un valor diminuto, la corriente se dispara, genera chispas y puede quemar la red.",
+                "PROTECCIÓN CON FUSIBLE\n\nUn fusible contiene un filamento calibrado en serie con el circuito.\n\nSi la corriente supera el amperaje seguro, el filamento se funde, abre el circuito y salva los equipos."
+            };
+            s.quizzes = new QuizSpec[]
+            {
+                Q("Assets/Sprites/Education/Diag_Corto.png",
+                  "En un cortocircuito, la resistencia R cae casi a cero. ¿Qué pasa con la corriente I?",
+                  "La corriente baja a cero",
+                  "La corriente se dispara peligrosamente (sobrecorriente)",
+                  "El circuito se enfría automáticamente",
+                  1, "¡Bien! Por I = V / R, si R → 0 la corriente crece de forma extrema."),
+                Q("Assets/Sprites/Education/Diag_Fusible.png",
+                  "¿Cómo protege un fusible a los componentes de Ciudad Circuito?",
+                  "Aumentando el voltaje de la batería",
+                  "Fundiéndose para abrir el circuito ante una sobrecarga",
+                  "Guardando energía extra como una pila",
+                  1, "¡Exacto! El fusible se sacrifica abriendo el paso de corriente.")
             };
             s.guideConv = new[]
             {
-                L("BIT", VoltColor, "¡Theo! Un virus invadió la Zona infectada y corrompió nuestros chips. Tienes 3 vidas para superar el sector."),
-                L("Theo (Tú)", LumenColor, "¿Y cómo los enfrento?"),
-                L("BIT", VoltColor, "Busca el hacha de mantenimiento más adelante y ataca con J o clic, o sáltales encima."),
-                L("BIT", VoltColor, "Recoge 5 chips y derrota a los virus. Al final te espera el Gran Cortocircuito (resiste 9 golpes): necesitarás el Hacha de plasma.")
+                L("BIT", VoltColor, "¡Alerta, Theo! Un virus infectó la zona industrial. Aquí tienes 3/3 vidas reales: si pierdes las tres, el sector se reinicia."),
+                L("Theo (Tú)", LumenColor, "¿Cómo los detengo y recupero vidas?"),
+                L("BIT", VoltColor, "Recoge el Hacha de mantenimiento y ataca con J o clic (o sáltales encima). Si respondes bien los retos de los carteles, recuperas +1 vida."),
+                L("BIT", VoltColor, "Reúne 5 chips y derrota al Gran Cortocircuito (6 golpes) con el Hacha de plasma: ¡al atacar lanza ondas eléctricas a distancia!")
             };
             s.guideDone = new[]
             {
-                L("BIT", VoltColor, "¡Lo lograste! Ve al generador, al final del nivel, y habla con el Técnico Amp.")
+                L("BIT", VoltColor, "¡Excelente! Ve al generador industrial y habla con el Técnico Amp.")
             };
             s.techConv = new[]
             {
-                L("Técnico Amp", VoltColor, "Aún no puedo reparar: faltan chips o el Gran Cortocircuito sigue activo.")
+                L("Técnico Amp", VoltColor, "Aún faltan chips o el Gran Cortocircuito sigue bloqueando el generador.")
             };
             s.techDone = new[]
             {
-                L("Técnico Amp", VoltColor, "¡Excelente! Sistema limpio y chips instalados."),
-                L("Theo (Tú)", LumenColor, "¿Ya recuperamos toda la ciudad?"),
-                L("Técnico Amp", VoltColor, "Falta el último sector: el Núcleo Central de Alta Tensión. ¡Ve hacia allá!")
+                L("Técnico Amp", VoltColor, "¡Sistema industrial limpio y fusibles instalados!"),
+                L("Theo (Tú)", LumenColor, "¡Ya se iluminó toda la zona industrial!"),
+                L("Técnico Amp", VoltColor, "Solo falta el último sector: el Núcleo Central de Alta Tensión. ¡Adelante!")
             };
-            s.objectiveStart = "Misión: recoge 5 chips y derrota a los virus y al Gran Cortocircuito";
+            s.objectiveStart = "Misión: recoge 5 chips y derrota al Gran Cortocircuito";
             s.objectiveReady = "Misión: habla con el Técnico Amp, junto al generador";
             s.missionMessage = "¡Misión cumplida! Reuniste los 5 chips y derrotaste al Gran Cortocircuito.\nHabla con el Técnico Amp, junto al generador.";
             s.finalTitle = "¡ZONA INFECTADA LIMPIA!";
-            s.finalBody = "Nivel 2 completado.\n\nAprendiste qué es un cortocircuito y para qué sirve un fusible. ¡Prepárate para el Núcleo Central!";
+            s.finalBody = "Nivel 2 completado.\n\nAprendiste qué provoca un cortocircuito y cómo protege un fusible.\n¡Prepárate para restaurar el Núcleo Central!";
             s.nextScene = "Nivel3";
         }
         else
@@ -236,18 +345,21 @@ public static class Momento3Builder
             s.title = "NIVEL 3 - Núcleo Central";
             s.tilesPath = "Assets/Sprites/Environment/Core_Tiles.png";
             s.bgPath = "Assets/Sprites/Environment/Level3_Background.png";
+            s.midBgPath = "Assets/Sprites/Environment/CityMid_Nivel3.png";
+            s.litBgPath = "Assets/Sprites/Environment/CityLit_Nivel3.png";
             s.collectiblePath = "Assets/Sprites/Props/Chip.png";
             s.collectibleName = "Núcleo";
             s.signAPath = "Assets/Sprites/Props/Sign_Ohm.png";
             s.signBPath = "Assets/Sprites/Props/Terminal.png";
-            s.dark = new Color(0.04f, 0.01f, 0.09f, 1f);
-            s.light = new Color(0.75f, 0.55f, 1f, 1f);
-            s.dim = new Color(0.55f, 0.4f, 0.75f, 1f);
+            s.dark = new Color(0.05f, 0.02f, 0.11f, 1f);
+            s.midLight = new Color(0.18f, 0.12f, 0.40f, 1f);
+            s.light = new Color(0.40f, 0.32f, 0.72f, 1f);
+            s.dim = new Color(0.92f, 0.90f, 1f, 1f);
             s.blocks = new int[][]
             {
                 new int[] { -8, 28, -6, -3, 1 },
                 new int[] { 32, 62, -6, -3, 1 },
-                new int[] { 44, 46, -1, 0, 0 }, // Plataforma elevada / paso limpio
+                new int[] { 44, 46, -1, 0, 0 },
                 new int[] { 66, 98, -6, -3, 1 },
                 new int[] { 75, 79, -1, -1, 1 },
                 new int[] { 83, 87, 0, 0, 1 },
@@ -287,22 +399,24 @@ public static class Momento3Builder
             };
             s.checkpoints = new float[] { 34f, 68f, 104f, 144f, 184f, 228f };
             s.checkpointY = new float[] { -2f, -2f, -2f, -2f, -2f, -2f };
+            // 15 virus equilibrados (mismo comportamiento justo que en Nivel 2)
             s.enemies = new Vector3[]
             {
                 new Vector3(22f, -2f, 3f),
                 new Vector3(40f, -2f, 3f),
                 new Vector3(58f, -2f, 3f),
-                new Vector3(73f, -2f, 4f),
-                new Vector3(88f, -2f, 4f),
+                new Vector3(73f, -2f, 3.5f),
+                new Vector3(88f, -2f, 3.5f),
                 new Vector3(110f, -2f, 3f),
-                new Vector3(122f, -2f, 4f),
-                new Vector3(148f, -2f, 4f),
-                new Vector3(166f, -2f, 4f),
-                new Vector3(190f, -2f, 4f),
-                new Vector3(204f, -2f, 4f),
+                new Vector3(122f, -2f, 3.5f),
+                new Vector3(148f, -2f, 3.5f),
+                new Vector3(166f, -2f, 3.5f),
+                new Vector3(190f, -2f, 3.5f),
+                new Vector3(204f, -2f, 3.5f),
                 new Vector3(219f, -2f, 3f),
-                new Vector3(236f, -2f, 4f),
-                new Vector3(246f, -2f, 4f)
+                new Vector3(236f, -2f, 3.5f),
+                new Vector3(244f, -2f, 3f),
+                new Vector3(252f, -2f, 3f)
             };
             s.weapons = new Vector3[]
             {
@@ -316,7 +430,7 @@ public static class Momento3Builder
                 new Vector3(268f, -1.4f, 4f)
             };
             s.hasBoss = true;
-            s.boss = new Vector3(262f, -2f, 10f);
+            s.boss = new Vector3(262f, -2f, 8f);
             s.guideX = 3f;
             s.technicianX = 274f;
             s.generatorX = 279f;
@@ -324,15 +438,30 @@ public static class Momento3Builder
             s.interactX = new float[] { 18f, 133f };
             s.interactContent = new string[]
             {
-                "POTENCIA ELÉCTRICA\n\nP = V x I\n\nLa potencia (P, en vatios W) es la energía que consume o entrega un circuito por segundo.\n\nSi el voltaje es 120 V y la corriente es 5 A, la potencia es P = 120 x 5 = 600 W.",
-                "ESTABILIDAD DE LA RED\n\nPara que toda Ciudad Circuito funcione sin apagones, el Núcleo Central debe mantener voltaje constante, fusibles activos y cero fugas a tierra."
+                "POTENCIA ELÉCTRICA (P = V × I)\n\nLa potencia (en Vatios, W) mide cuánta energía entrega o consume un circuito cada segundo.\n\nEjemplo: una subestación de 120 V con corriente de 5 A entrega P = 120 × 5 = 600 W.",
+                "CIRCUITOS EN SERIE vs. PARALELO\n\n• En SERIE: una sola ruta; si falla una carga, se apagan todas.\n• En PARALELO: varias ramas con igual voltaje; si falla una rama, el resto sigue funcionando."
+            };
+            s.quizzes = new QuizSpec[]
+            {
+                Q("Assets/Sprites/Education/Diag_Potencia.png",
+                  "¿Qué potencia entrega una línea de 120 V por la que circulan 5 A?",
+                  "P = 24 W (120 / 5)",
+                  "P = 600 W (120 × 5)",
+                  "P = 125 W (120 + 5)",
+                  1, "¡Correcto! P = V × I = 120 V × 5 A = 600 W."),
+                Q("Assets/Sprites/Education/Diag_SerieParalelo.png",
+                  "¿Por qué Ciudad Circuito conecta los edificios en PARALELO?",
+                  "Para que si falla un edificio, los demás sigan con luz",
+                  "Para que toda la ciudad se apague al dañar un bombillo",
+                  "Porque el paralelo elimina el voltaje de la fuente",
+                  0, "¡Excelente! En paralelo cada rama recibe voltaje independiente.")
             };
             s.guideConv = new[]
             {
-                L("BIT", VoltColor, "¡Bienvenido al Núcleo Central, Theo! Este es el recorrido más largo y peligroso de toda la red."),
-                L("Theo (Tú)", LumenColor, "¡Hay demasiados virus allá adelante!"),
-                L("BIT", VoltColor, "Recoge la Pistola de Pulsos Eléctricos aquí adelante. Dispara a distancia con J o clic, pero cuida tus balas: ¡son contadas!"),
-                L("BIT", VoltColor, "Puedes recoger cargadores extra en el camino. Reúne los 5 núcleos, derrota a los 14 virus y vence al Megacortocircuito final.")
+                L("BIT", VoltColor, "¡Bienvenido al Núcleo Central, Theo! Este es el último sector para iluminar toda Ciudad Circuito."),
+                L("Theo (Tú)", LumenColor, "¡Es enorme y hay 15 virus patrullando el puente!"),
+                L("BIT", VoltColor, "Recoge la Pistola de Pulsos Eléctricos aquí adelante. Dispara a distancia con J o clic y recarga con los cargadores del camino."),
+                L("BIT", VoltColor, "Reúne los 5 núcleos, cuida tus 3/3 vidas y vence al Megacortocircuito final (13 golpes).")
             };
             s.guideDone = new[]
             {
@@ -340,19 +469,19 @@ public static class Momento3Builder
             };
             s.techConv = new[]
             {
-                L("Técnico Amp", VoltColor, "Aún quedan núcleos por recolectar o el jefe del Núcleo Central sigue bloqueando la red.")
+                L("Técnico Amp", VoltColor, "Aún quedan núcleos por recolectar o el Megacortocircuito sigue bloqueando el reactor.")
             };
             s.techDone = new[]
             {
                 L("Técnico Amp", VoltColor, "¡Increíble trabajo, Theo! El Núcleo Central está al 100% de potencia."),
-                L("Theo (Tú)", LumenColor, "¡Toda Ciudad Circuito volvió a iluminarse!"),
-                L("Técnico Amp", VoltColor, "Dominaste la Ley de Ohm, el circuito cerrado, los fusibles y la potencia eléctrica. ¡Felicitaciones, héroe de la energía!")
+                L("Theo (Tú)", LumenColor, "¡Mira el cielo, toda Ciudad Circuito volvió a brillar!"),
+                L("Técnico Amp", VoltColor, "Dominaste la Ley de Ohm, circuitos cerrados, fusibles, potencia y redes en paralelo. ¡Felicitaciones, Guardián del Conocimiento!")
             };
             s.objectiveStart = "Misión Final: recoge los 5 núcleos y derrota al Megacortocircuito";
             s.objectiveReady = "Misión cumplida: habla con el Técnico Amp junto al reactor final";
-            s.missionMessage = "¡Misión Final Cumplida! Reuniste los 5 núcleos y venciste al Megacortocircuito.\nHabla con el Técnico Amp junto al reactor para restaurar la luz.";
+            s.missionMessage = "¡Misión Final Cumplida! Reuniste los 5 núcleos y venciste al Megacortocircuito.\nHabla con el Técnico Amp junto al reactor para restaurar la luz total.";
             s.finalTitle = "¡FELICITACIONES!";
-            s.finalBody = "¡COMPLETASTE REGRESO A LA LUZ!\n\nRestauraste el 100% de la energía de Ciudad Circuito junto a Theo, BIT y el Técnico Amp.\n\nConceptos dominados:\n• Nivel 1: Ley de Ohm (V = I x R) y Circuito Cerrado\n• Nivel 2: Cortocircuitos y Protección con Fusibles\n• Nivel 3: Potencia Eléctrica (P = V x I) y Red Central\n\n¡Excelente trabajo, Ingeniero!";
+            s.finalBody = "¡COMPLETASTE REGRESO A LA LUZ!\n\nRestauraste el 100% de la energía de Ciudad Circuito junto a Theo, BIT y el Técnico Amp.\n\nConceptos dominados:\n• Nivel 1: Ley de Ohm (V = I × R) y Circuito Cerrado\n• Nivel 2: Cortocircuitos y Protección con Fusibles\n• Nivel 3: Potencia Eléctrica (P = V × I) y Redes en Paralelo";
             s.nextScene = "";
         }
         return s;
@@ -387,7 +516,7 @@ public static class Momento3Builder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         EditorSceneManager.OpenScene(ScenesPath + "MainMenu.unity");
-        EditorUtility.DisplayDialog("Momento 3", "¡Listo! MainMenu, Nivel1, Nivel2 y Nivel3 construidas y registradas en Build Settings.", "OK");
+        EditorUtility.DisplayDialog("Momento 3", "¡Listo! MainMenu, Nivel1, Nivel2 y Nivel3 construidas con fondos de ciudad, diagramas de circuitos, vidas 3/3 con Game Over y jefes balanceados.", "OK");
     }
 
     private static SerializedObject LoadTagManager()
@@ -597,7 +726,7 @@ public static class Momento3Builder
         outline.effectColor = new Color(0.02f, 0.1f, 0.15f, 1f);
         outline.effectDistance = new Vector2(6f, -6f);
 
-        Text subtitle = Txt(canvasGo.transform, "SubtitleText", "Un Serious Game sobre circuitos eléctricos", 50, Cyan, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 290f), new Vector2(1600f, 80f));
+        Text subtitle = Txt(canvasGo.transform, "SubtitleText", "Un Serious Game sobre electricidad y circuitos eléctricos", 48, Cyan, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 290f), new Vector2(1600f, 80f));
         Outline o2 = subtitle.gameObject.AddComponent<Outline>();
         o2.effectColor = new Color(0f, 0f, 0f, 1f);
         o2.effectDistance = new Vector2(3f, -3f);
@@ -617,16 +746,17 @@ public static class Momento3Builder
         Text insTitle = Txt(instructionsPanel.transform, "Titulo", "INSTRUCCIONES", 70, Gold, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 440f), new Vector2(1500f, 110f));
         insTitle.fontStyle = FontStyle.Bold;
         string insBody =
-            "HISTORIA\n" +
-            "Ciudad Circuito se quedó a oscuras: su generador se apagó y cinco tuercas salieron disparadas por el circuito. Theo, un joven reparador, y BIT, un dron de memoria dañada, deben recuperarlas para devolver la luz. El nivel 1 enseña la Ley de Ohm y el circuito cerrado; el nivel 2 enseña qué es un cortocircuito y para qué sirve un fusible, mientras enfrentas virus que invadieron el sistema.\n\n" +
-            "OBJETIVO\n" +
-            "Nivel 1: recoge las 5 tuercas. Nivel 2: recoge 5 chips, derrota a los virus y al Gran Cortocircuito. Luego habla con el Técnico Amp, junto al generador.\n\n" +
+            "HISTORIA Y OBJETIVO\n" +
+            "Ciudad Circuito quedó a oscuras. Ayuda a Theo y al dron BIT a reparar los tres sectores de la red:\n" +
+            "• Nivel 1 (Ciudad apagada): recoge 5 tuercas y aprende Ley de Ohm y Circuito Cerrado.\n" +
+            "• Nivel 2 (Zona infectada): recoge 5 chips, cuida tus 3/3 vidas y derrota al Gran Cortocircuito.\n" +
+            "• Nivel 3 (Núcleo Central): recoge 5 núcleos, usa la Pistola de Pulsos y vence al Megacortocircuito.\n\n" +
             "CONTROLES\n" +
-            "A / D o flechas: mover     |     ESPACIO: saltar     |     S: agacharse y deslizarse\n" +
-            "E: hablar y leer     |     J o clic: atacar     |     R: reiniciar     |     M: silenciar\n\n" +
-            "AYUDAS\n" +
-            "Busca las armas del nivel para poder atacar. Las pilas te dan turbo por unos segundos. Las chispas te devuelven al último checkpoint. Si caes a un vacío, reapareces.";
-        Txt(instructionsPanel.transform, "Contenido", insBody, 30, Color.white, TextAnchor.UpperLeft, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -10f), new Vector2(1700f, 740f));
+            "A / D o flechas: mover   |   ESPACIO / W: saltar   |   S: agacharse y deslizarse\n" +
+            "E: hablar y abrir diagramas   |   1, 2, 3: responder retos   |   J o clic: atacar / disparar   |   R: reiniciar   |   M: silenciar\n\n" +
+            "AYUDAS Y VIDAS\n" +
+            "En los niveles de combate tienes 3/3 vidas (si llegas a 0 aparece Game Over). Responder bien los retos en los carteles de circuitos te da +50 puntos y recupera +1 vida.";
+        Txt(instructionsPanel.transform, "Contenido", insBody, 29, Color.white, TextAnchor.UpperLeft, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -10f), new Vector2(1700f, 740f));
         Button closeIns = Btn(instructionsPanel.transform, "Btn_CloseInstructions", "VOLVER", new Vector2(0f, -440f), 420f);
 
         GameObject creditsPanel = NewUI("CreditsPanel", canvasGo.transform);
@@ -637,18 +767,18 @@ public static class Momento3Builder
         creditsTitle.fontStyle = FontStyle.Bold;
         string body =
             "REGRESO A LA LUZ\n" +
-            "Versión Prototipo - Momento 3 - Semestre II / 2026\n\n" +
+            "Versión Candidata Final - Momento 3 (Semanas 4 y 5) - Semestre II / 2026\n\n" +
             "1. PROPÓSITO EDUCATIVO\n" +
-            "- Área: Física - Electricidad y circuitos\n" +
-            "- El jugador repara un generador y aprende la Ley de Ohm, el circuito cerrado, los cortocircuitos y los fusibles.\n\n" +
+            "- Área: Física - Electricidad básica y circuitos eléctricos\n" +
+            "- Contenidos: Ley de Ohm (V = I × R), Circuito Cerrado, Cortocircuito, Fusibles, Potencia (P = V × I) y Circuitos Serie/Paralelo.\n\n" +
             "2. EQUIPO DE DESARROLLO\n" +
-            "- Diseño, programación, arte e interfaces: Kevin Yoany Hernández Ramírez\n" +
-            "- Docente: Ing. Luz Karime Castellanos Joya - Universitaria Tecnológica de Santander\n\n" +
+            "- Diseño, programación, arte, diagramas e interfaces: Kevin Yoany Hernández Ramírez\n" +
+            "- Docente: Ing. Luz Karime Castellanos Joya - Unidades Tecnológicas de Santander (UTS)\n\n" +
             "3. HERRAMIENTAS Y RECURSOS\n" +
-            "- Unity 2021.3 LTS, C#, GitHub y Claude (IA) como apoyo.\n" +
-            "- Arte, música y efectos de sonido: elaborados para este prototipo.\n\n" +
-            "AVISO LEGAL Y ACADÉMICO: prototipo desarrollado con fines formativos y académicos. No posee fines comerciales ni lucrativos.";
-        Txt(creditsPanel.transform, "Credito", body, 30, Color.white, TextAnchor.UpperLeft, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -10f), new Vector2(1700f, 740f));
+            "- Unity 2021.3 LTS, C#, GitHub y herramientas de IA como apoyo técnico.\n" +
+            "- Arte 2D, fondos urbanos, esquemas eléctricos, música y efectos de sonido: 100% originales para este proyecto.\n\n" +
+            "AVISO LEGAL Y ACADÉMICO: desarrollado con fines formativos y académicos. No posee fines comerciales ni lucrativos.";
+        Txt(creditsPanel.transform, "Credito", body, 29, Color.white, TextAnchor.UpperLeft, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -10f), new Vector2(1700f, 740f));
         Button closeCredits = Btn(creditsPanel.transform, "Btn_CloseCredits", "VOLVER", new Vector2(0f, -440f), 420f);
 
         GameObject managerGo = new GameObject("MenuManager");
@@ -897,7 +1027,7 @@ public static class Momento3Builder
         return npc;
     }
 
-    private static GameObject CreateInteractable(string name, Sprite sprite, Vector3 pos, Sprite prompt, string content, HudUI hud)
+    private static GameObject CreateInteractable(string name, Sprite sprite, Vector3 pos, Sprite prompt, string content, QuizSpec quiz, HudUI hud)
     {
         GameObject go = Prop(name, sprite, pos, "Characters", 1);
         go.transform.localScale = new Vector3(1.5f, 1.5f, 1f);
@@ -915,7 +1045,24 @@ public static class Momento3Builder
         so.FindProperty("promptFloatingText").objectReferenceValue = promptGo;
         so.FindProperty("infoDisplayPanel").objectReferenceValue = hud.infoPanel;
         so.FindProperty("infoTextComponent").objectReferenceValue = hud.infoText;
+        so.FindProperty("diagramImageComponent").objectReferenceValue = hud.diagramImage;
         so.FindProperty("educationalContent").stringValue = content;
+        so.FindProperty("quizTextComponent").objectReferenceValue = hud.quizText;
+        so.FindProperty("quizFeedbackComponent").objectReferenceValue = hud.quizFeedback;
+
+        if (quiz != null)
+        {
+            so.FindProperty("diagramSprite").objectReferenceValue = LoadSingle(quiz.diagramPath);
+            so.FindProperty("quizQuestion").stringValue = quiz.question;
+            SerializedProperty opts = so.FindProperty("quizOptions");
+            opts.arraySize = quiz.options.Length;
+            for (int i = 0; i < quiz.options.Length; i++)
+            {
+                opts.GetArrayElementAtIndex(i).stringValue = quiz.options[i];
+            }
+            so.FindProperty("correctOptionIndex").intValue = quiz.correctIndex;
+            so.FindProperty("correctFeedback").stringValue = quiz.feedback;
+        }
         so.ApplyModifiedPropertiesWithoutUndo();
         return go;
     }
@@ -1015,10 +1162,10 @@ public static class Momento3Builder
 
         bool isCombat = spec.enemies != null;
         float panelHeight = isCombat ? 330f : 185f;
-        GameObject hudPanel = Box(canvas, "HUDPanel", new Color(0f, 0f, 0f, 0.65f), tl, tl, new Vector2(20f, -20f), new Vector2(1120f, panelHeight));
+        GameObject hudPanel = Box(canvas, "HUDPanel", new Color(0f, 0f, 0f, 0.68f), tl, tl, new Vector2(20f, -20f), new Vector2(1120f, panelHeight));
         hud.objective = Txt(hudPanel.transform, "ObjectiveText", "", 32, Color.white, TextAnchor.MiddleLeft, tl, tl, new Vector2(20f, -10f), new Vector2(1080f, 52f));
 
-        // Fila 1: Tuercas / Chips / Núcleos con su dibujo y 5 slots
+        // Fila 1: Tuercas / Chips / Núcleos con su icono y 5 slots
         GameObject iconGo = NewUI("NutIcon", hudPanel.transform);
         Image icon = iconGo.AddComponent<Image>();
         icon.sprite = nutIcon;
@@ -1040,7 +1187,7 @@ public static class Momento3Builder
             hud.slots[i] = img;
         }
 
-        // Fila 2 (Niveles 2 y 3): Vidas con su dibujito (icono de energía/vida) + 3 slots visuales iguales a los chips
+        // Fila 2 (Niveles 2 y 3): Vidas 3/3 funcionales
         Sprite lifeSprite = LoadSprites("Assets/Sprites/Props/Battery.png")[0];
         GameObject lifeIconGo = NewUI("LifeIcon", hudPanel.transform);
         Image lifeIcon = lifeIconGo.AddComponent<Image>();
@@ -1065,7 +1212,7 @@ public static class Momento3Builder
             hud.lifeSlots[i] = limg;
         }
 
-        // Fila 3 (Niveles 2 y 3): Arma y balas bien separadas abajo
+        // Fila 3 (Niveles 2 y 3): Arma y munición
         hud.weapon = Txt(hudPanel.transform, "WeaponText", "", 36, Gold, TextAnchor.MiddleLeft, tl, tl, new Vector2(24f, -252f), new Vector2(1050f, 54f));
         hud.weapon.fontStyle = FontStyle.Bold;
 
@@ -1078,14 +1225,15 @@ public static class Momento3Builder
         hud.boost = Txt(canvas, "BoostText", "", 48, Cyan, TextAnchor.MiddleRight, tr, tr, new Vector2(-30f, -96f), new Vector2(600f, 70f));
         hud.boost.fontStyle = FontStyle.Bold;
 
-        hud.toast = Txt(canvas, "ToastText", "", 56, Gold, TextAnchor.MiddleCenter, tc, tc, new Vector2(0f, -260f), new Vector2(1400f, 90f));
+        hud.toast = Txt(canvas, "ToastText", "", 50, Gold, TextAnchor.MiddleCenter, tc, tc, new Vector2(0f, -260f), new Vector2(1500f, 90f));
         hud.toast.fontStyle = FontStyle.Bold;
         Outline toastOutline = hud.toast.gameObject.AddComponent<Outline>();
         toastOutline.effectColor = Color.black;
         toastOutline.effectDistance = new Vector2(3f, -3f);
 
-        Txt(canvas, "ControlsHint", "A / D: mover   |   ESPACIO: saltar   |   S: agacharse / deslizarse   |   E: interactuar   |   J / clic: atacar   |   R: reiniciar   |   M: silenciar", 28, new Color(1f, 1f, 1f, 0.85f), TextAnchor.MiddleLeft, bl, bl, new Vector2(24f, 14f), new Vector2(1800f, 44f));
+        Txt(canvas, "ControlsHint", "A/D: mover  |  ESPACIO: saltar  |  S: agacharse  |  E: diagramas/hablar  |  1-3: retos  |  J/clic: atacar  |  R: reiniciar  |  M: silenciar", 26, new Color(1f, 1f, 1f, 0.88f), TextAnchor.MiddleLeft, bl, bl, new Vector2(24f, 14f), new Vector2(1860f, 44f));
 
+        // Panel de diálogo
         DialogueUI dui = new DialogueUI();
         dui.panel = Box(canvas, "DialoguePanel", Dark, bc, bc, new Vector2(0f, 40f), new Vector2(1500f, 330f));
         Outline dOutline = dui.panel.AddComponent<Outline>();
@@ -1093,32 +1241,50 @@ public static class Momento3Builder
         dOutline.effectDistance = new Vector2(3f, -3f);
         dui.nameText = Txt(dui.panel.transform, "NPCNameText", "", 54, Gold, TextAnchor.MiddleLeft, tl, tl, new Vector2(40f, -18f), new Vector2(1000f, 70f));
         dui.nameText.fontStyle = FontStyle.Bold;
-        dui.contentText = Txt(dui.panel.transform, "DialogueContentText", "", 42, Color.white, TextAnchor.UpperLeft, tl, tl, new Vector2(40f, -100f), new Vector2(1420f, 170f));
+        dui.contentText = Txt(dui.panel.transform, "DialogueContentText", "", 40, Color.white, TextAnchor.UpperLeft, tl, tl, new Vector2(40f, -100f), new Vector2(1420f, 170f));
         Txt(dui.panel.transform, "ContinueHint", "Presiona E o Espacio para continuar...", 30, new Color(0.7f, 0.8f, 0.85f, 1f), TextAnchor.MiddleRight, br, br, new Vector2(-30f, 14f), new Vector2(800f, 44f));
         Fade(dui.panel);
         dui.panel.SetActive(false);
         hud.dialogue = dui;
 
-        hud.infoPanel = Box(canvas, "InfoPanel", Dark, c, c, new Vector2(0f, 60f), new Vector2(1300f, 520f));
+        // Panel Educativo enriquecido: Diagrama visual (izquierda) + Explicación (derecha) + Mini-Reto interactivo (abajo)
+        hud.infoPanel = Box(canvas, "InfoPanel", Dark, c, c, new Vector2(0f, 20f), new Vector2(1660f, 800f));
         Outline iOutline = hud.infoPanel.AddComponent<Outline>();
         iOutline.effectColor = Cyan;
-        iOutline.effectDistance = new Vector2(3f, -3f);
-        hud.infoText = Txt(hud.infoPanel.transform, "InfoText", "", 42, Color.white, TextAnchor.MiddleLeft, c, c, new Vector2(0f, 20f), new Vector2(1200f, 420f));
-        Txt(hud.infoPanel.transform, "CloseHint", "Presiona E para cerrar", 30, new Color(0.7f, 0.8f, 0.85f, 1f), TextAnchor.MiddleRight, br, br, new Vector2(-30f, 14f), new Vector2(600f, 44f));
+        iOutline.effectDistance = new Vector2(4f, -4f);
+
+        GameObject diagGo = NewUI("DiagramImage", hud.infoPanel.transform);
+        hud.diagramImage = diagGo.AddComponent<Image>();
+        hud.diagramImage.preserveAspect = true;
+        Place(diagGo, tl, tl, new Vector2(45f, -42f), new Vector2(680f, 445f));
+
+        hud.infoText = Txt(hud.infoPanel.transform, "InfoText", "", 34, Color.white, TextAnchor.UpperLeft, tl, tl, new Vector2(760f, -48f), new Vector2(855f, 435f));
+
+        GameObject quizBox = Box(hud.infoPanel.transform, "QuizBox", new Color(0.05f, 0.12f, 0.22f, 0.95f), bl, bl, new Vector2(45f, 65f), new Vector2(1570f, 225f));
+        Outline qOutline = quizBox.AddComponent<Outline>();
+        qOutline.effectColor = Gold;
+        qOutline.effectDistance = new Vector2(2f, -2f);
+        hud.quizText = Txt(quizBox.transform, "QuizText", "", 30, Color.white, TextAnchor.UpperLeft, tl, tl, new Vector2(24f, -14f), new Vector2(1520f, 155f));
+        hud.quizFeedback = Txt(quizBox.transform, "QuizFeedback", "", 28, Gold, TextAnchor.MiddleLeft, bl, bl, new Vector2(24f, 10f), new Vector2(1520f, 44f));
+        hud.quizFeedback.fontStyle = FontStyle.Bold;
+
+        Txt(hud.infoPanel.transform, "CloseHint", "Presiona E para cerrar", 28, new Color(0.75f, 0.85f, 0.9f, 1f), TextAnchor.MiddleRight, br, br, new Vector2(-45f, 14f), new Vector2(600f, 40f));
         Fade(hud.infoPanel);
         hud.infoPanel.SetActive(false);
 
+        // Panel Misión Cumplida (toast grande)
         hud.missionPanel = Box(canvas, "MissionCompletePanel", new Color(0.02f, 0.2f, 0.12f, 0.93f), c, c, new Vector2(0f, 250f), new Vector2(1500f, 260f));
         Outline mOutline = hud.missionPanel.AddComponent<Outline>();
         mOutline.effectColor = new Color(0.3f, 1f, 0.6f, 1f);
         mOutline.effectDistance = new Vector2(3f, -3f);
-        Text mText = Txt(hud.missionPanel.transform, "Text", "¡Felicidades! Reuniste las 5 tuercas.\nAhora lleva el avance al Técnico Amp, junto al generador, al final del nivel.", 46, Color.white, TextAnchor.MiddleCenter, c, c, Vector2.zero, Vector2.zero);
+        Text mText = Txt(hud.missionPanel.transform, "Text", "¡Felicidades! Reuniste las 5 tuercas.\nAhora lleva el avance al Técnico Amp, junto al generador.", 44, Color.white, TextAnchor.MiddleCenter, c, c, Vector2.zero, Vector2.zero);
         mText.fontStyle = FontStyle.Bold;
         hud.missionText = mText;
         Stretch(mText.gameObject);
         Fade(hud.missionPanel);
         hud.missionPanel.SetActive(false);
 
+        // Panel Victoria Final del Nivel
         hud.finalPanel = Box(canvas, "FinalPanel", new Color(0.01f, 0.04f, 0.09f, 0.92f), c, c, Vector2.zero, Vector2.zero);
         Stretch(hud.finalPanel);
         GameObject finalCard = Box(hud.finalPanel.transform, "FinalCard", new Color(0.03f, 0.09f, 0.16f, 0.96f), c, c, new Vector2(0f, 40f), new Vector2(1620f, 680f));
@@ -1141,6 +1307,21 @@ public static class Momento3Builder
         Fade(hud.finalPanel);
         hud.finalPanel.SetActive(false);
 
+        // Panel Game Over (cuando se pierden las 3/3 vidas)
+        hud.gameOverPanel = Box(canvas, "GameOverPanel", new Color(0.08f, 0.01f, 0.02f, 0.93f), c, c, Vector2.zero, Vector2.zero);
+        Stretch(hud.gameOverPanel);
+        GameObject goCard = Box(hud.gameOverPanel.transform, "GameOverCard", new Color(0.14f, 0.03f, 0.05f, 0.97f), c, c, new Vector2(0f, 40f), new Vector2(1420f, 560f));
+        Outline goOut = goCard.AddComponent<Outline>();
+        goOut.effectColor = new Color(1f, 0.3f, 0.3f, 1f);
+        goOut.effectDistance = new Vector2(4f, -4f);
+        Text goTitle = Txt(goCard.transform, "GameOverTitle", "¡FIN DEL JUEGO!", 92, new Color(1f, 0.35f, 0.35f, 1f), TextAnchor.MiddleCenter, c, c, new Vector2(0f, 150f), new Vector2(1300f, 120f));
+        goTitle.fontStyle = FontStyle.Bold;
+        Txt(goCard.transform, "GameOverBody", "Te quedaste sin vidas (0 / 3) en este sector.\n\nConsejo: responde bien los retos de los carteles de circuitos para recuperar +1 vida.", 38, Color.white, TextAnchor.MiddleCenter, c, c, new Vector2(0f, -20f), new Vector2(1260f, 220f));
+        hud.gameOverRestartButton = Btn(hud.gameOverPanel.transform, "Btn_GO_Restart", "REINICIAR NIVEL", new Vector2(-280f, -290f), 480f);
+        hud.gameOverMenuButton = Btn(hud.gameOverPanel.transform, "Btn_GO_Menu", "MENÚ PRINCIPAL", new Vector2(280f, -290f), 480f);
+        Fade(hud.gameOverPanel);
+        hud.gameOverPanel.SetActive(false);
+
         return hud;
     }
 
@@ -1158,6 +1339,8 @@ public static class Momento3Builder
         Sprite terminalSprite = LoadSingle(spec.signBPath);
         Sprite promptSprite = LoadSingle("Assets/Sprites/UI/PromptE.png");
         Sprite bgSprite = LoadSingle(spec.bgPath);
+        Sprite midBgSprite = LoadSingle(spec.midBgPath);
+        Sprite litBgSprite = LoadSingle(spec.litBgPath);
         Sprite idleSprite = LoadSprites("Assets/Sprites/Soldier_Idle.png").First(s => s.name == "Soldier_Idle_0");
 
         GameObject bgRoot = new GameObject("Background");
@@ -1235,13 +1418,14 @@ public static class Momento3Builder
         SerializedObject pso = new SerializedObject(pc);
         pso.FindProperty("groundCheck").objectReferenceValue = groundCheck.transform;
         pso.FindProperty("groundLayer").intValue = -1;
+        pso.FindProperty("maxLives").intValue = 3;
         pso.ApplyModifiedPropertiesWithoutUndo();
 
         CreateNpc("NPC_Guia", new Vector3(spec.guideX, -2f, 0f), npcFrames, promptSprite, spec.guideConv, spec.guideDone, false, hud.dialogue);
         CreateNpc("NPC_Tecnico", new Vector3(spec.technicianX, -2f, 0f), npcFrames, promptSprite, spec.techConv, spec.techDone, true, hud.dialogue);
 
-        CreateInteractable("Cartel_1", signSprite, new Vector3(spec.interactX[0], -2f, 0f), promptSprite, spec.interactContent[0], hud);
-        CreateInteractable("Terminal_2", terminalSprite, new Vector3(spec.interactX[1], -2f, 0f), promptSprite, spec.interactContent[1], hud);
+        CreateInteractable("Cartel_1", signSprite, new Vector3(spec.interactX[0], -2f, 0f), promptSprite, spec.interactContent[0], spec.quizzes[0], hud);
+        CreateInteractable("Terminal_2", terminalSprite, new Vector3(spec.interactX[1], -2f, 0f), promptSprite, spec.interactContent[1], spec.quizzes[1], hud);
 
         for (int i = 0; i < spec.nuts.Length; i++) CreateNut(new Vector3(spec.nuts[i].x, spec.nuts[i].y, 0f), nutFrames, spec.collectibleName);
         for (int i = 0; i < spec.batteries.Length; i++) CreateBattery(new Vector3(spec.batteries[i].x, spec.batteries[i].y, 0f), batteryFrames);
@@ -1261,9 +1445,9 @@ public static class Momento3Builder
             Sprite[] weapon3Frames = LoadSprites("Assets/Sprites/Props/Weapon3.png");
             if (weapon3Frames == null || weapon3Frames.Length == 0) weapon3Frames = weapon2Frames;
 
-            int vHp = spec.index == 3 ? 3 : 2;
-            float vSpeed = spec.index == 3 ? 3.2f : 1.8f;
-            float vScale = spec.index == 3 ? 1.3f : 1.2f;
+            int vHp = 2;
+            float vSpeed = spec.index == 3 ? 1.9f : 1.75f;
+            float vScale = spec.index == 3 ? 1.25f : 1.2f;
 
             for (int i = 0; i < spec.enemies.Length; i++)
             {
@@ -1272,10 +1456,10 @@ public static class Momento3Builder
             }
             if (spec.hasBoss)
             {
-                int bossHp = spec.index == 2 ? 14 : 22;
+                int bossHp = spec.index == 2 ? 6 : 13;
                 int reqWeapon = spec.index == 2 ? 2 : 3;
-                float bossSpeed = spec.index == 2 ? 2.5f : 3.1f;
-                float bossScale = spec.index == 2 ? 1.75f : 2.1f;
+                float bossSpeed = spec.index == 2 ? 1.45f : 2.25f;
+                float bossScale = spec.index == 2 ? 1.75f : 2.05f;
                 string bossTitle = spec.index == 2 ? "Gran Cortocircuito" : "Megacortocircuito del Núcleo";
                 CreateEnemy("Boss_GranCortocircuito", new Vector3(spec.boss.x, spec.boss.y, 0f), bossFrames, spec.boss.z, bossHp, bossSpeed, bossScale, reqWeapon, true, bossTitle, new Vector2(1.5f, 1.6f), new Vector2(0f, 0.9f));
             }
@@ -1290,7 +1474,7 @@ public static class Momento3Builder
                 else if (wLevel == 3)
                     CreateWeapon(new Vector3(wp.x, wp.y, 0f), weapon3Frames, 3, "Pistola de Pulsos");
                 else
-                    CreateWeapon(new Vector3(wp.x, wp.y, 0f), batteryFrames, 4, "Cargador de Pulsos (+18 balas)");
+                    CreateWeapon(new Vector3(wp.x, wp.y, 0f), batteryFrames, 4, "Cargador de Pulsos (+20 balas)");
             }
         }
 
@@ -1325,7 +1509,10 @@ public static class Momento3Builder
         hso.FindProperty("finalBodyText").objectReferenceValue = hud.finalBody;
         hso.FindProperty("missionCompletePanel").objectReferenceValue = hud.missionPanel;
         hso.FindProperty("finalPanel").objectReferenceValue = hud.finalPanel;
+        hso.FindProperty("gameOverPanel").objectReferenceValue = hud.gameOverPanel;
         hso.FindProperty("worldCamera").objectReferenceValue = cam;
+        hso.FindProperty("midCityBackgroundSprite").objectReferenceValue = midBgSprite;
+        hso.FindProperty("litCityBackgroundSprite").objectReferenceValue = litBgSprite;
         hso.FindProperty("generatorRenderer").objectReferenceValue = generator.GetComponent<SpriteRenderer>();
         hso.FindProperty("generatorOnSprite").objectReferenceValue = generatorFrames[1];
         hso.FindProperty("levelIndex").intValue = spec.index;
@@ -1347,8 +1534,10 @@ public static class Momento3Builder
         }
         hso.FindProperty("nextSceneName").stringValue = spec.nextScene;
         hso.FindProperty("darkColor").colorValue = spec.dark;
+        hso.FindProperty("midLightColor").colorValue = spec.midLight;
         hso.FindProperty("lightColor").colorValue = spec.light;
         hso.FindProperty("dimTint").colorValue = spec.dim;
+
         SerializedProperty slots = hso.FindProperty("nutSlots");
         slots.arraySize = hud.slots.Length;
         for (int i = 0; i < hud.slots.Length; i++)
@@ -1378,6 +1567,8 @@ public static class Momento3Builder
         }
         UnityEventTools.AddPersistentListener(hud.menuButton.onClick, manager.GoToMenu);
         UnityEventTools.AddPersistentListener(hud.restartButton.onClick, manager.RestartGame);
+        UnityEventTools.AddPersistentListener(hud.gameOverRestartButton.onClick, manager.RestartGame);
+        UnityEventTools.AddPersistentListener(hud.gameOverMenuButton.onClick, manager.GoToMenu);
 
         EditorSceneManager.SaveScene(scene, ScenesPath + spec.sceneName + ".unity");
     }

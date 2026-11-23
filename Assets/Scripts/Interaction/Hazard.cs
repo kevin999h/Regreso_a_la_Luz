@@ -9,10 +9,13 @@ public class Hazard : MonoBehaviour
         PlayerController player = collision.GetComponent<PlayerController>();
         if (player == null) return;
 
-        player.Respawn();
         if (GameHUDManager.Instance != null)
         {
-            GameHUDManager.Instance.ShowToast("¡Chispas! Vuelves al último checkpoint");
+            string msg = GameHUDManager.Instance.IsCombatLevel
+                ? "¡Chispas eléctricas! Pierdes 1 vida"
+                : "¡Chispas! Vuelves al último checkpoint";
+            GameHUDManager.Instance.ShowToast(msg);
         }
+        player.TakeDamageOrRespawn(false);
     }
 }

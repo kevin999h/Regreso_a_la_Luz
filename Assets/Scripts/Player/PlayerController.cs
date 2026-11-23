@@ -6,7 +6,6 @@ public class PlayerController : MonoBehaviour
 {
     [Header("Movimiento y Salto")]
     [SerializeField] private float moveSpeed = 6f;
-    [SerializeField] private bool isTopDown = false;
     [SerializeField] private float jumpForce = 13f;
     [SerializeField] private Transform groundCheck;
     [SerializeField] private float checkRadius = 0.15f;
@@ -43,6 +42,7 @@ public class PlayerController : MonoBehaviour
     private Vector3 respawnPosition;
     private int currentLives;
     private float invulnerableTimer = 0f;
+    private bool isDead = false;
 
     public int FacingDirection => facingDir;
     public bool IsCrouching => isCrouching;
@@ -74,12 +74,24 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
+        if (isDead)
+        {
+            rb.velocity = new Vector2(0f, rb.velocity.y);
+            return;
+        }
+
         if (invulnerableTimer > 0f)
         {
             invulnerableTimer -= Time.deltaTime;
+            if (sr != null)
+                sr.color = (Mathf.FloorToInt(invulnerableTimer * 14f) % 2 == 0) ? new Color(1f, 1f, 1f, 0.45f) : Color.white;
+        }
+        else if (sr != null && sr.color.a < 0.99f)
+        {
+            sr.color = Color.white;
         }
 
-        if (NPCDialogue.IsDialogueActive)
+        if (NPCDialogue.IsDialogueActive || InteractableObject.IsEducationalPanelActive)
         {
             moveInput = 0f;
             rb.velocity = new Vector2(0f, rb.velocity.y);
@@ -100,10 +112,8 @@ public class PlayerController : MonoBehaviour
         }
 
         CheckGrounded();
-
         bool ceilingBlocked = HasCeilingAbove();
 
-        // Salto con ESPACIO, W o Flecha Arriba (bloqueado si hay techo bajo encima para no atravesar la estructura)
         if ((Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) && isGrounded && !ceilingBlocked)
         {
             isSliding = false;
@@ -130,16 +140,8 @@ public class PlayerController : MonoBehaviour
             if (slideTimer <= 0f || !holdDown)
             {
                 isSliding = false;
-                if (holdDown || ceilingBlocked)
-                {
-                    isCrouching = true;
-                    ApplyCollider(true);
-                }
-                else
-                {
-                    isCrouching = false;
-                    ApplyCollider(false);
-                }
+                isCrouching = holdDown || ceilingBlocked;
+                ApplyCollider(isCrouching);
             }
         }
         else
@@ -149,30 +151,21 @@ public class PlayerController : MonoBehaviour
                 isCrouching = true;
                 ApplyCollider(true);
             }
-            else if (isCrouching)
+            else if (isCrouching && !ceilingBlocked)
             {
-                if (!ceilingBlocked)
-                {
-                    isCrouching = false;
-                    ApplyCollider(false);
-                }
+                isCrouching = false;
+                ApplyCollider(false);
             }
         }
 
         if (boostTimer > 0f)
         {
             boostTimer -= Time.deltaTime;
-            if (GameHUDManager.Instance != null)
-            {
-                GameHUDManager.Instance.SetBoostRemaining(boostTimer);
-            }
+            if (GameHUDManager.Instance != null) GameHUDManager.Instance.SetBoostRemaining(boostTimer);
             if (boostTimer <= 0f)
             {
                 boostMultiplier = 1f;
-                if (GameHUDManager.Instance != null)
-                {
-                    GameHUDManager.Instance.SetBoostRemaining(0f);
-                }
+                if (GameHUDManager.Instance != null) GameHUDManager.Instance.SetBoostRemaining(0f);
             }
         }
 
@@ -180,9 +173,12 @@ public class PlayerController : MonoBehaviour
         {
             if (GameHUDManager.Instance != null)
             {
-                GameHUDManager.Instance.ShowToast("¡Caíste al vacío! Regresas al último checkpoint");
+                string msg = GameHUDManager.Instance.IsCombatLevel
+                    ? "¡Caíste al vacío! Pierdes 1 vida"
+                    : "¡Caíste al vacío! Regresas al último checkpoint";
+                GameHUDManager.Instance.ShowToast(msg);
             }
-            Respawn();
+            TakeDamageOrRespawn(true);
         }
 
         UpdateAnimator();
@@ -190,7 +186,7 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (NPCDialogue.IsDialogueActive) return;
+        if (isDead || NPCDialogue.IsDialogueActive || InteractableObject.IsEducationalPanelActive) return;
 
         float speed = moveSpeed * boostMultiplier;
         if (isSliding)
@@ -212,19 +208,17 @@ public class PlayerController : MonoBehaviour
     {
         Vector2 pos = groundCheck != null ? (Vector2)groundCheck.position : (Vector2)transform.position;
         Collider2D[] hits = Physics2D.OverlapCircleAll(pos, checkRadius, groundLayer);
-        bool groundedNow = false;
+        isGrounded = false;
         for (int i = 0; i < hits.Length; i++)
         {
             if (hits[i] != null && hits[i].gameObject != gameObject && !hits[i].isTrigger)
             {
-                groundedNow = true;
+                isGrounded = true;
                 break;
             }
         }
-        isGrounded = groundedNow;
     }
 
-    // Verifica toda la caja superior donde estaría la cabeza de Theo si se pone de pie (evita atravesar túneles/estructuras al soltar S)
     private bool HasCeilingAbove()
     {
         float scaleY = Mathf.Abs(transform.localScale.y);
@@ -235,9 +229,7 @@ public class PlayerController : MonoBehaviour
         for (int i = 0; i < hits.Length; i++)
         {
             if (hits[i] != null && hits[i].gameObject != gameObject && !hits[i].isTrigger)
-            {
                 return true;
-            }
         }
         return false;
     }
@@ -271,9 +263,18 @@ public class PlayerController : MonoBehaviour
     {
         boostMultiplier = multiplier;
         boostTimer = duration;
-        if (GameHUDManager.Instance != null)
+        if (GameHUDManager.Instance != null) GameHUDManager.Instance.SetBoostRemaining(boostTimer);
+    }
+
+    public void HealOneLife()
+    {
+        if (currentLives < maxLives)
         {
-            GameHUDManager.Instance.SetBoostRemaining(boostTimer);
+            currentLives++;
+            if (GameHUDManager.Instance != null)
+            {
+                GameHUDManager.Instance.UpdateLives(currentLives, maxLives);
+            }
         }
     }
 
@@ -284,34 +285,35 @@ public class PlayerController : MonoBehaviour
 
     public void Respawn()
     {
-        if (invulnerableTimer > 0f && transform.position.y >= fallLimitY) return;
-        invulnerableTimer = 0.6f;
+        TakeDamageOrRespawn(false);
+    }
 
+    public void TakeDamageOrRespawn(bool forceFall = false)
+    {
+        if (isDead) return;
+        if (!forceFall && invulnerableTimer > 0f) return;
+
+        invulnerableTimer = 1.15f;
         AudioManager.Play(Sfx.Hurt);
-        if (animator != null)
-        {
-            animator.SetTrigger("Hurt");
-        }
+        if (animator != null) animator.SetTrigger("Hurt");
 
         if (GameHUDManager.Instance != null && GameHUDManager.Instance.IsCombatLevel)
         {
-            currentLives--;
+            currentLives = Mathf.Max(0, currentLives - 1);
             GameHUDManager.Instance.UpdateLives(currentLives, maxLives);
 
             if (currentLives <= 0)
             {
-                currentLives = maxLives;
-                GameHUDManager.Instance.UpdateLives(currentLives, maxLives);
-                GameHUDManager.Instance.ShowToast("¡Te quedaste sin vidas! Reiniciando en punto de control...");
+                isDead = true;
+                rb.velocity = Vector2.zero;
+                if (sr != null) sr.color = new Color(1f, 0.35f, 0.35f, 1f);
+                GameHUDManager.Instance.TriggerGameOver();
+                return;
             }
         }
 
-        // Si tiene la pistola y reaparece con pocas balas, le recargamos mínimo 18 balas para que nunca quede bloqueado
         PlayerCombat combat = GetComponent<PlayerCombat>();
-        if (combat != null)
-        {
-            combat.RefillMinimumAmmoOnRespawn();
-        }
+        if (combat != null) combat.RefillMinimumAmmoOnRespawn();
 
         isSliding = false;
         isCrouching = false;

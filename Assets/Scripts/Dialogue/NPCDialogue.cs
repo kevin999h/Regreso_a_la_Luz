@@ -43,16 +43,15 @@ public class NPCDialogue : MonoBehaviour
     private void Update()
     {
         if (!isPlayerInRange) return;
+        if (InteractableObject.IsEducationalPanelActive) return;
+        if (GameHUDManager.Instance != null && GameHUDManager.Instance.IsGameOver) return;
 
         bool pressed = Input.GetKeyDown(KeyCode.E) || (isThisDialogueActive && Input.GetKeyDown(KeyCode.Space));
         if (!pressed) return;
 
         if (!isThisDialogueActive)
         {
-            if (!IsDialogueActive)
-            {
-                StartDialogue();
-            }
+            if (!IsDialogueActive) StartDialogue();
         }
         else
         {
@@ -97,10 +96,7 @@ public class NPCDialogue : MonoBehaviour
         AudioManager.Play(Sfx.Dialogue);
         DialogueLine line = activeLines[currentLineIndex];
         nameText.text = line.speakerName;
-        if (line.nameColor.a > 0f)
-        {
-            nameText.color = line.nameColor;
-        }
+        if (line.nameColor.a > 0f) nameText.color = line.nameColor;
         contentText.text = line.text;
     }
 
@@ -117,10 +113,7 @@ public class NPCDialogue : MonoBehaviour
         if (collision.CompareTag("Player"))
         {
             isPlayerInRange = true;
-            if (!isThisDialogueActive && interactionPrompt != null)
-            {
-                interactionPrompt.SetActive(true);
-            }
+            if (!isThisDialogueActive && interactionPrompt != null) interactionPrompt.SetActive(true);
         }
     }
 
@@ -129,10 +122,7 @@ public class NPCDialogue : MonoBehaviour
         if (collision.CompareTag("Player"))
         {
             isPlayerInRange = false;
-            if (isThisDialogueActive)
-            {
-                EndDialogue();
-            }
+            if (isThisDialogueActive) EndDialogue();
             if (interactionPrompt != null) interactionPrompt.SetActive(false);
         }
     }
